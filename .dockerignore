@@ -1,0 +1,32 @@
+# Version Control & Git
+.git
+.gitignore
+
+# Dependencies & Build Artefacts
+node_modules
+dist
+build
+coverage
+
+# Environment Variables & Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Test Suites & Development Artifacts
+tests
+k8s
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# IDE, OS & Editor Configurations
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+
+# Documentation
+DEVELOPMENT_LOG.md

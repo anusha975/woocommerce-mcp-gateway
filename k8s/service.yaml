@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: woocommerce-mcp-gateway-service
+  labels:
+    app.kubernetes.io/name: woocommerce-mcp-gateway
+    app.kubernetes.io/part-of: mcp-gateway
+    app.kubernetes.io/component: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: woocommerce-mcp-gateway
+  ports:
+    - name: http-mcp
+      port: 3000
+      targetPort: http-mcp
+      protocol: TCP
+  # Session Affinity Considerations:
+  # - Streamable HTTP (/mcp): Stateless, operates seamlessly with round-robin load balancing (sessionAffinity: None).
+  # - Legacy SSE (/sse + /messages): If clients use long-lived SSE connections across multiple replicas,
+  #   enable sessionAffinity: ClientIP with a sticky timeout (e.g. 10800s) to keep clients pinned to the same pod.
+  sessionAffinity: None

@@ -110,8 +110,9 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
 
   app.get('/', (req: Request, res: Response) => {
     const acceptHeader = req.headers['accept'] || '';
-    if (acceptHeader.includes('text/html') && !acceptHeader.includes('*/*')) {
-      res.redirect('/ui');
+    // If request explicitly asks for HTML (e.g. web browser navigation), redirect to interactive dashboard
+    if (acceptHeader.includes('text/html')) {
+      res.redirect(302, '/ui');
       return;
     }
 

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import type { User, ApiKeyRecord, UpstreamServer, AuditLogRecord } from '../types/index.js';
 import { logger } from '../logging/logger.js';
 
@@ -14,12 +15,29 @@ export class JsonStore {
   private filePath: string;
   private data: StorageData;
   private isPersisting = false;
+  private isReadOnly = false;
 
   constructor(dataDir: string = './data', filename: string = 'gateway-data.json') {
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    let resolvedDir = dataDir;
+    try {
+      if (!fs.existsSync(resolvedDir)) {
+        fs.mkdirSync(resolvedDir, { recursive: true });
+      }
+    } catch (err) {
+      logger.warn({ err, targetDir: resolvedDir }, 'Failed to create configured dataDir; attempting fallback to temporary directory');
+      try {
+        const fallbackDir = path.join(os.tmpdir(), 'wc-mcp-data');
+        if (!fs.existsSync(fallbackDir)) {
+          fs.mkdirSync(fallbackDir, { recursive: true });
+        }
+        resolvedDir = fallbackDir;
+      } catch (fallbackErr) {
+        logger.error({ fallbackErr }, 'Failed to create fallback directory; operating in memory-only mode');
+        this.isReadOnly = true;
+      }
     }
-    this.filePath = path.join(dataDir, filename);
+
+    this.filePath = path.join(resolvedDir, filename);
     this.data = this.load();
   }
 
@@ -47,7 +65,7 @@ export class JsonStore {
   }
 
   public save(): void {
-    if (this.isPersisting) return;
+    if (this.isPersisting || this.isReadOnly) return;
     this.isPersisting = true;
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf8');

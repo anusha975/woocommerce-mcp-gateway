@@ -28,7 +28,8 @@ WORKDIR /usr/src/app
 # Set production environment flags
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    DATA_DIR=/usr/src/app/data
 
 # Install only production dependencies
 COPY package.json package-lock.json ./
@@ -36,6 +37,9 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copy compiled JavaScript output from builder stage with unprivileged ownership
 COPY --from=builder --chown=node:node /usr/src/app/dist ./dist
+
+# Create runtime data directory with ownership for unprivileged 'node' user
+RUN mkdir -p /usr/src/app/data && chown -R node:node /usr/src/app
 
 # Create non-root runtime permissions (use built-in 'node' user: uid 1000, gid 1000)
 USER node

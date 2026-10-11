@@ -15,4 +15,4 @@ services:
       - key: GATEWAY_API_KEY
         generateValue: true
       - key: DATA_DIR
-        value: ./data
+        value: /tmp/data

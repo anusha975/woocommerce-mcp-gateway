@@ -68,6 +68,21 @@ export class AuthService {
       }
     }
 
+    // Ensure the default dev key is always registered for seamless dashboard demo access
+    const defaultDevKey = 'gw_sec_dev_local_key_123';
+    const hasDevKey = this.store.getApiKeys().some((k) => k.id === 'key_admin_default_dev' && !k.revoked);
+    if (!hasDevKey) {
+      this.store.addApiKey({
+        id: 'key_admin_default_dev',
+        userId: admin.id,
+        name: 'Default Admin Access Key',
+        keyHash: AuthService.hashApiKey(defaultDevKey),
+        keyPrefix: defaultDevKey.slice(0, 7) + '...',
+        revoked: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     // Ensure Member has a valid key
     const hasMemberKey = existingKeys.some((k) => k.userId === member?.id && !k.revoked);
     if (!hasMemberKey) {

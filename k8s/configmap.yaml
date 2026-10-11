@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: woocommerce-mcp-gateway-config
+  namespace: woocommerce-mcp
   labels:
     app.kubernetes.io/name: woocommerce-mcp-gateway
     app.kubernetes.io/part-of: mcp-gateway
@@ -11,6 +12,11 @@ data:
   PORT: "3000"
   HOST: "0.0.0.0"
   LOG_LEVEL: "info"
+  # Target WooCommerce Store URL:
+  # NOTE: In Kubernetes, 'localhost' refers to the pod itself, not the Windows host machine.
+  # For local development with Docker Desktop Kubernetes accessing a host-based store (e.g. Local WP):
+  # Use: "http://host.docker.internal:10004" (or corresponding host port).
+  # For remote stores, use the standard HTTPS store URL:
   WOOCOMMERCE_BASE_URL: "https://your-store.example.com"
   WOOCOMMERCE_TIMEOUT_MS: "10000"
   WOOCOMMERCE_VERIFY_SSL: "true"

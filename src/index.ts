@@ -8,6 +8,10 @@ export async function bootstrap(): Promise<RunningServer | void> {
   try {
     const config = getConfig();
 
+    if (!config.woocommerce.verifySsl) {
+      process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+    }
+
     logger.info(
       {
         env: config.env,

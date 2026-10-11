@@ -367,33 +367,120 @@ curl -i http://localhost:3000/healthz
 
 ## 14. Kubernetes Deployment & Operations
 
-Production manifests in [`k8s/`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s) deploy 2 pod replicas behind an internal `ClusterIP` Service:
+Production Kubernetes manifests in [`k8s/`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s) deploy 2 pod replicas behind a secure, private `ClusterIP` Service with health and readiness probes, resource limits, and non-root execution.
 
+### 14.1 Prerequisites
+- **kubectl**: CLI installed (`v1.28+`).
+- **Local Cluster**: Docker Desktop Kubernetes or Minikube.
+
+### 14.2 Enabling the Local Cluster
+- **Docker Desktop**:
+  1. Open Docker Desktop **Settings** (gear icon).
+  2. Navigate to **Kubernetes** in the left sidebar.
+  3. Check **Enable Kubernetes**.
+  4. Click **Apply & restart** and wait until the Kubernetes indicator in the footer turns green.
+  5. Verify connectivity: `kubectl get nodes`.
+- **Minikube**:
+  ```bash
+  minikube start
+  ```
+
+### 14.3 Building & Loading the Local Image
+1. Build the production multi-stage Docker image locally:
+   ```bash
+   docker build -t woocommerce-mcp-gateway:local .
+   ```
+2. **Cluster Image Availability**:
+   - **Docker Desktop Kubernetes**: No loading step needed! Docker Desktop Kubernetes natively shares the local Docker engine image store.
+   - **Minikube**: Load the image into the Minikube virtual machine:
+     ```bash
+     minikube image load woocommerce-mcp-gateway:local
+     ```
+
+### 14.4 Applying Manifests
+1. **Prepare Secrets**:
+   Create the secret using either the template file or the `kubectl` CLI:
+   ```bash
+   # Option A: From template file
+   cp k8s/secret.example.yaml k8s/secret.yaml
+   # (Edit k8s/secret.yaml with your actual credentials)
+   kubectl apply -f k8s/secret.yaml
+
+   # Option B: Imperatively via CLI
+   kubectl create secret generic woocommerce-mcp-gateway-secrets \
+     --namespace=woocommerce-mcp \
+     --from-literal=WOOCOMMERCE_CONSUMER_KEY="ck_your_consumer_key" \
+     --from-literal=WOOCOMMERCE_CONSUMER_SECRET="cs_your_consumer_secret" \
+     --from-literal=GATEWAY_API_KEY="your_secure_random_key"
+   ```
+   *(Note: `k8s/secret.yaml` is excluded by `.gitignore` to prevent secret leakage).*
+
+2. **Deploy Manifests**:
+   ```bash
+   # Deploy all manifests via Kustomize (handles namespace, config, deployment, service)
+   kubectl apply -k k8s/
+   ```
+
+### 14.5 Checking Pods, Deployments, Services & Logs
 ```bash
-# 1. Prepare secrets from template
-cp k8s/secret.example.yaml k8s/secret.yaml
-# (Edit k8s/secret.yaml with your store credentials)
+# Check pod rollout status in the woocommerce-mcp namespace
+kubectl rollout status deployment/woocommerce-mcp-gateway -n woocommerce-mcp
 
-# 2. Deploy manifests to cluster
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-# Or via Kustomize:
-kubectl apply -k k8s/
+# List running pods
+kubectl get pods -n woocommerce-mcp -o wide
 
-# 3. Check deployment rollout
-kubectl rollout status deployment/woocommerce-mcp-gateway
+# Inspect deployment and service
+kubectl get deployment,svc -n woocommerce-mcp
 
-# 4. Port-forward internal ClusterIP service to local workstation
-kubectl port-forward svc/woocommerce-mcp-gateway-service 3000:3000
+# Stream live container logs across replicas
+kubectl logs -l app=woocommerce-mcp-gateway -n woocommerce-mcp -f --tail=50
+```
 
-# 5. Test health and probes locally
+### 14.6 Accessing the Service with `kubectl port-forward`
+Forward the private ClusterIP service port to your local workstation:
+```bash
+kubectl port-forward svc/woocommerce-mcp-gateway-service 3000:3000 -n woocommerce-mcp
+```
+
+### 14.7 Testing Health & MCP Endpoints
+In another terminal, verify the endpoints over the forwarded port:
+```bash
+# 1. Test Liveness probe
 curl -i http://localhost:3000/healthz
+
+# 2. Test Readiness probe
 curl -i http://localhost:3000/readyz
 
-# 6. Cleanup
-kubectl delete -f k8s/
+# 3. Test Gateway discovery endpoint
+curl -i http://localhost:3000/
+
+# 4. Test MCP Protocol initialization (Streamable HTTP)
+curl -i -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": { "name": "k8s-tester", "version": "1.0.0" }
+    }
+  }'
+```
+
+### 14.8 DNS & Host Networking Notice for Windows
+> [!IMPORTANT]
+> Inside a Kubernetes pod, `localhost` points to the container itself, **not** your Windows host. If connecting to a local WooCommerce site on your Windows PC (e.g. Local WP), set `WOOCOMMERCE_BASE_URL` in `k8s/configmap.yaml` to `http://host.docker.internal:PORT`.
+
+### 14.9 Cleanup Commands
+```bash
+# Delete all resources in the namespace
+kubectl delete -k k8s/
+
+# Or delete individual resources
+kubectl delete namespace woocommerce-mcp
 ```
 
 *For multi-replica considerations, rolling update strategy, and troubleshooting, see [docs/deployment.md](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/docs/deployment.md).*

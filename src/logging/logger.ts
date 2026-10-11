@@ -1,5 +1,15 @@
+import { createRequire } from 'node:module';
 import pino from 'pino';
 import type { LogLevel } from '../types/index.js';
+
+const require = createRequire(import.meta.url);
+let canUsePinoPretty = false;
+try {
+  require.resolve('pino-pretty');
+  canUsePinoPretty = true;
+} catch {
+  canUsePinoPretty = false;
+}
 
 export const SENSITIVE_KEYS = [
   'WOOCOMMERCE_CONSUMER_SECRET',
@@ -93,16 +103,17 @@ export function createLogger(options: {
       paths: REDACT_PATHS,
       censor: '[REDACTED]',
     },
-    transport: pretty
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-          },
-        }
-      : undefined,
+    transport:
+      pretty && canUsePinoPretty
+        ? {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          }
+        : undefined,
     serializers: {
       err: pino.stdSerializers.err,
       error: pino.stdSerializers.err,
@@ -114,5 +125,5 @@ export function createLogger(options: {
 // Default application logger instance
 export const logger = createLogger({
   level: (process.env['LOG_LEVEL'] as LogLevel) || 'info',
-  pretty: process.env['NODE_ENV'] === 'development',
+  pretty: process.env['NODE_ENV'] === 'development' && canUsePinoPretty,
 });

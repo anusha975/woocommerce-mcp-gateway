@@ -2,21 +2,23 @@
 .git
 .gitignore
 
-# Dependencies & Build Artefacts
+# Dependencies & Build Artifacts
 node_modules
 dist
 build
 coverage
 
-# Environment Variables & Secrets
+# Environment Variables & Secrets (Ensure no secrets enter image)
 .env
 .env.*
 *.pem
 *.key
 
-# Test Suites & Development Artifacts
+# Test Suites, Kubernetes & Development Artifacts
 tests
 k8s
+scripts
+docs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -28,5 +30,8 @@ yarn-debug.log*
 Thumbs.db
 *.swp
 
-# Documentation
+# Documentation & Config
 DEVELOPMENT_LOG.md
+README.md
+vitest.config.ts
+eslint.config.mjs

@@ -122,7 +122,11 @@ export function validateEnvironment(env: Record<string, string | undefined>): Ap
   }
 
   const { data } = result;
-  const rawUrl = (data.WOOCOMMERCE_BASE_URL || data.WOOCOMMERCE_URL || '').replace(/\/+$/, '');
+  const rawUrl = (data.WOOCOMMERCE_BASE_URL || data.WOOCOMMERCE_URL || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/wp-json\/wc\/v3\/?$/, '')
+    .replace(/\/wp-json\/?$/, '');
   const apiKey = data.GATEWAY_API_KEY?.trim() || undefined;
 
   return {

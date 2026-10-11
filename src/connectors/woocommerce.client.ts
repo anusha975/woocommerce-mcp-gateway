@@ -239,6 +239,15 @@ export class WooCommerceClient {
 
       clearTimeout(timeoutId);
 
+      logger.debug(
+        {
+          upstreamHost: url.hostname,
+          upstreamPath: url.pathname,
+          statusCode: response.status,
+        },
+        'WooCommerce upstream HTTP response received'
+      );
+
       // Handle Rate Limit (HTTP 429)
       if (response.status === 429) {
         const retryAfterHeader = response.headers.get('Retry-After');
@@ -267,7 +276,12 @@ export class WooCommerceClient {
 
       // Handle Not Found (HTTP 404)
       if (response.status === 404) {
-        throw new WooCommerceNotFoundError('Resource', endpoint);
+        const parts = cleanEndpoint.split('/');
+        if (parts.length >= 2 && parts[1]) {
+          const resourceName = parts[0] === 'products' ? 'Product' : parts[0] === 'orders' ? 'Order' : parts[0] ?? 'Resource';
+          throw new WooCommerceNotFoundError(resourceName, parts[1]);
+        }
+        throw new WooCommerceNotFoundError(`endpoint '/wp-json/wc/v3/${cleanEndpoint}'`);
       }
 
       // Handle Bad Request (HTTP 400)

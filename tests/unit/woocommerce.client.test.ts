@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { WooCommerceClient } from '../../src/connectors/woocommerce.client.js';
 import {
   WooCommerceAuthError,
-  WooCommerceNotFoundError,
   WooCommerceRateLimitError,
   WooCommerceTimeoutError,
   WooCommerceUpstreamError,
@@ -151,16 +150,30 @@ describe('WooCommerceClient (Unit & Mocked HTTP)', () => {
     await expect(client.listProducts()).rejects.toThrow(WooCommerceAuthError);
   });
 
-  it('should throw WooCommerceNotFoundError on HTTP 404', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+  it('should throw WooCommerceNotFoundError on HTTP 404 for item and collection endpoints', async () => {
+    // 404 for specific product item lookup
+    const mockItemFetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ code: 'woocommerce_rest_product_invalid_id', message: 'Invalid ID.' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       })
     );
+    const client1 = new WooCommerceClient({ ...defaultOptions, fetchFn: mockItemFetch });
+    await expect(client1.getProduct(99999)).rejects.toThrow(
+      "WooCommerce Product with ID '99999' was not found."
+    );
 
-    const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
-    await expect(client.getProduct(99999)).rejects.toThrow(WooCommerceNotFoundError);
+    // 404 for collection endpoint (e.g. missing REST API route on base URL)
+    const mockCollectionFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: 'rest_no_route', message: 'No route was found matching the URL.' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const client2 = new WooCommerceClient({ ...defaultOptions, fetchFn: mockCollectionFetch });
+    await expect(client2.listProducts()).rejects.toThrow(
+      "WooCommerce endpoint '/wp-json/wc/v3/products' was not found on the upstream server. Check your WOOCOMMERCE_BASE_URL and store configuration."
+    );
   });
 
   it('should throw WooCommerceRateLimitError on HTTP 429 when retry delay is high', async () => {

@@ -30,8 +30,12 @@ export class WooCommerceAuthError extends WooCommerceError {
 }
 
 export class WooCommerceNotFoundError extends WooCommerceError {
-  constructor(resource: string, id: string | number) {
-    super(`WooCommerce ${resource} with ID '${id}' was not found.`, {
+  constructor(resource: string, id?: string | number) {
+    const message =
+      id !== undefined
+        ? `WooCommerce ${resource} with ID '${id}' was not found.`
+        : `WooCommerce ${resource} was not found on the upstream server. Check your WOOCOMMERCE_BASE_URL and store configuration.`;
+    super(message, {
       code: 'WOOCOMMERCE_NOT_FOUND',
       statusCode: 404,
     });

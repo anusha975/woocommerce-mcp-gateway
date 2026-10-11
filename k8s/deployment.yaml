@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: woocommerce-mcp-gateway
+  namespace: woocommerce-mcp
   labels:
     app.kubernetes.io/name: woocommerce-mcp-gateway
     app.kubernetes.io/part-of: mcp-gateway
@@ -22,6 +23,9 @@ spec:
         app: woocommerce-mcp-gateway
         app.kubernetes.io/name: woocommerce-mcp-gateway
     spec:
+      # Explicit container restart policy
+      restartPolicy: Always
+
       # Pod-level security context (strict non-root execution)
       securityContext:
         runAsNonRoot: true
@@ -36,7 +40,7 @@ spec:
 
       containers:
         - name: gateway
-          image: woocommerce-mcp-gateway:latest
+          image: woocommerce-mcp-gateway:local
           imagePullPolicy: IfNotPresent
           
           # Container-level hardening
@@ -44,6 +48,8 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop:
                 - ALL

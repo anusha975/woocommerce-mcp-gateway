@@ -79,7 +79,8 @@ graph TD
 ```
 
 ### Manifests Inventory
-- **[`k8s/deployment.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/deployment.yaml)**: 2 replicas, `RollingUpdate` strategy, non-root security context, resource boundaries (100m–500m CPU, 128Mi–512Mi RAM), liveness/readiness probes, 30s graceful termination.
+- **[`k8s/namespace.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/namespace.yaml)**: Dedicated `woocommerce-mcp` namespace.
+- **[`k8s/deployment.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/deployment.yaml)**: 2 replicas, `RollingUpdate` strategy, non-root security context (`USER node`, UID 1000), resource boundaries (100m–500m CPU, 128Mi–512Mi RAM), liveness/readiness probes, 30s graceful termination.
 - **[`k8s/service.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/service.yaml)**: Private `ClusterIP` exposing port 3000 internally.
 - **[`k8s/configmap.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/configmap.yaml)**: Non-sensitive runtime variables (`NODE_ENV`, `PORT`, `HOST`, `WOOCOMMERCE_BASE_URL`, `RATE_LIMIT_*`).
 - **[`k8s/secret.example.yaml`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/k8s/secret.example.yaml)**: Secret template for WooCommerce keys and Gateway API token.
@@ -96,22 +97,32 @@ cp k8s/secret.example.yaml k8s/secret.yaml
 ```
 *Note: `k8s/secret.yaml` is excluded by `.gitignore` to prevent accidental Git commits.*
 
+Alternatively, create the secret imperatively:
+```bash
+kubectl create secret generic woocommerce-mcp-gateway-secrets \
+  --namespace=woocommerce-mcp \
+  --from-literal=WOOCOMMERCE_CONSUMER_KEY="ck_your_key" \
+  --from-literal=WOOCOMMERCE_CONSUMER_SECRET="cs_your_secret" \
+  --from-literal=GATEWAY_API_KEY="your_api_key"
+```
+
 ### Step 2: Apply Manifests
 Deploy using `kubectl` or `kustomize`:
 ```bash
 # Option A: Standard apply
+kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/secret.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 
-# Option B: Kustomize
+# Option B: Kustomize (recommended)
 kubectl apply -k k8s/
 ```
 
 ### Step 3: Monitor Rollout
 ```bash
-kubectl rollout status deployment/woocommerce-mcp-gateway
+kubectl rollout status deployment/woocommerce-mcp-gateway -n woocommerce-mcp
 ```
 
 ---

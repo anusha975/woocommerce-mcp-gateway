@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: woocommerce-mcp-gateway
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: GATEWAY_API_KEY
+        generateValue: true
+      - key: DATA_DIR
+        value: ./data

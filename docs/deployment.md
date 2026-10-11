@@ -225,3 +225,21 @@ kubectl delete -f k8s/
 kubectl delete -k k8s/
 ```
 
+---
+
+## 8. Live Demo Deployment on Render (Web Dashboard Preview)
+
+For live evaluation and testing of the React Dashboard and MCP Gateway without a local Kubernetes cluster, the service can be deployed on Render using the included [`render.yaml`](../render.yaml) blueprint:
+
+1. Log in to [Render Dashboard](https://dashboard.render.com).
+2. Click **New +** -> **Blueprint**.
+3. Connect your GitHub repository: `https://github.com/anusha975/woocommerce-mcp-gateway`.
+4. Render will automatically detect `render.yaml` and configure:
+   - **Runtime**: Node.js (`node:>=20`)
+   - **Build Command**: `npm ci && npm run build`
+   - **Start Command**: `npm start`
+   - **Health Check Path**: `/healthz`
+5. Click **Apply**.
+6. Once deployed, open `https://<your-render-subdomain>.onrender.com/ui` in your browser.
+
+

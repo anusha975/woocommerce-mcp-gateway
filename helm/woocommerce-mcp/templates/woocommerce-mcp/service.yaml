@@ -1,0 +1,22 @@
+{{- if .Values.woocommerceMcp.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "woocommerce-mcp.mcpServer.serviceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+spec:
+  # Strictly internal private ClusterIP (Requirement 9: never directly exposed externally)
+  type: ClusterIP
+  ports:
+    - name: http-mcp
+      port: {{ .Values.woocommerceMcp.service.port }}
+      targetPort: http-mcp
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+{{- end }}

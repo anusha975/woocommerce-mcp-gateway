@@ -17,6 +17,7 @@ export const envSchema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     GATEWAY_API_KEY: z.string().optional(),
+    DATA_DIR: z.string().default('./data'),
     RATE_LIMIT_WINDOW_MS: z
       .string()
       .default('60000')
@@ -81,19 +82,23 @@ export const envSchema = z
         return;
       }
 
-      const isLocalhost =
+      const isInternalOrLocalHost =
         parsedUrl.hostname === 'localhost' ||
         parsedUrl.hostname === '127.0.0.1' ||
         parsedUrl.hostname === '::1' ||
         parsedUrl.hostname.endsWith('.local') ||
-        parsedUrl.hostname.endsWith('.test');
+        parsedUrl.hostname.endsWith('.test') ||
+        parsedUrl.hostname.endsWith('.internal') ||
+        parsedUrl.hostname.endsWith('.cluster.local') ||
+        parsedUrl.hostname.endsWith('.svc') ||
+        !parsedUrl.hostname.includes('.');
 
-      if (parsedUrl.protocol === 'http:' && !isLocalhost && data.NODE_ENV === 'production') {
+      if (parsedUrl.protocol === 'http:' && !isInternalOrLocalHost && data.NODE_ENV === 'production') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['WOOCOMMERCE_BASE_URL'],
           message:
-            'HTTPS is strictly required for remote WooCommerce endpoints in production. HTTP is only permitted for localhost or development/test environments.',
+            'HTTPS is strictly required for remote WooCommerce endpoints in production. HTTP is only permitted for localhost or internal/test environments.',
         });
       }
     } catch {
@@ -135,6 +140,7 @@ export function validateEnvironment(env: Record<string, string | undefined>): Ap
     host: data.HOST,
     logLevel: data.LOG_LEVEL,
     gatewayApiKey: apiKey,
+    dataDir: data.DATA_DIR,
     security: {
       gatewayApiKey: apiKey,
       rateLimitWindowMs: data.RATE_LIMIT_WINDOW_MS,

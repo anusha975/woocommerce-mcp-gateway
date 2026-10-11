@@ -1,0 +1,34 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce-mcp.dashboard.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.dashboard.fullname" . }}
+spec:
+  replicas: {{ .Values.dashboard.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: dashboard
+      app.kubernetes.io/name: {{ include "woocommerce-mcp.dashboard.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce-mcp.labels" . | nindent 8 }}
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/name: {{ include "woocommerce-mcp.dashboard.fullname" . }}
+    spec:
+      containers:
+        - name: dashboard
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
+          imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+{{- end }}

@@ -1,0 +1,119 @@
+# ==============================================================================
+# Production k3s VPS Values
+# Usage:
+#   helm install woocommerce-mcp ./helm/woocommerce-mcp -f ./helm/woocommerce-mcp/values-prod.yaml
+# ==============================================================================
+
+secrets:
+  # In production, recommend creating secret externally:
+  # kubectl create secret generic woocommerce-mcp-prod-credentials \
+  #   --namespace=woocommerce-mcp \
+  #   --from-literal=WOOCOMMERCE_CONSUMER_KEY="ck_..." \
+  #   --from-literal=WOOCOMMERCE_CONSUMER_SECRET="cs_..." \
+  #   --from-literal=GATEWAY_API_KEY="gw_sec_..."
+  existingSecret: ""
+  woocommerceConsumerKey: "REPLACE_WITH_PRODUCTION_CONSUMER_KEY"
+  woocommerceConsumerSecret: "REPLACE_WITH_PRODUCTION_CONSUMER_SECRET"
+  gatewayApiKey: "REPLACE_WITH_PRODUCTION_GATEWAY_API_KEY"
+
+database:
+  enabled: true
+  existingSecret: ""
+  image:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  auth:
+    rootPassword: "GENERATE_STRONG_ROOT_PASSWORD"
+    database: "wordpress"
+    username: "wp_prod_user"
+    password: "GENERATE_STRONG_WP_PASSWORD"
+  persistence:
+    enabled: true
+    storageClass: "local-path" # k3s default built-in storage provider
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+wordpress:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: wordpress
+    tag: "6.7-php8.2-apache"
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    storageClass: "local-path" # k3s default storage provider
+    size: 30Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 2Gi
+
+woocommerceMcp:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/anusha975/woocommerce-mcp-gateway
+    tag: "latest"
+    pullPolicy: Always
+  logLevel: "warn"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+gateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/anusha975/woocommerce-mcp-gateway
+    tag: "latest"
+    pullPolicy: Always
+  logLevel: "info"
+  rateLimit:
+    windowMs: 60000
+    maxRequests: 300
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+dashboard:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: "traefik" # k3s default ingress controller
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  storefront:
+    enabled: true
+    host: "store.yourdomain.com"
+  gateway:
+    enabled: true
+    host: "mcp.yourdomain.com"
+  tls:
+    - hosts:
+        - "store.yourdomain.com"
+      secretName: "store-tls-cert"
+    - hosts:
+        - "mcp.yourdomain.com"
+      secretName: "gateway-tls-cert"

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { z } from 'zod';
 import { WooCommerceClient } from '../../src/connectors/woocommerce.client.js';
 import { WooCommerceNotFoundError } from '../../src/connectors/woocommerce.errors.js';
+import { updateOrderStatusInputSchema, WOOCOMMERCE_ORDER_STATUSES } from '../../src/tools/orders.tools.js';
 import { mockRawOrderDetail } from '../fixtures/woocommerce.fixtures.js';
 
 describe('Order Tools Unit & Logic Tests', () => {
@@ -41,5 +43,31 @@ describe('Order Tools Unit & Logic Tests', () => {
 
     const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
     await expect(client.getOrder(99999)).rejects.toThrow(WooCommerceNotFoundError);
+  });
+
+  describe('updateOrderStatusInputSchema', () => {
+    const schema = z.object(updateOrderStatusInputSchema);
+
+    it('should validate and parse valid order ID and each legitimate status', () => {
+      for (const status of WOOCOMMERCE_ORDER_STATUSES) {
+        const parsed = schema.parse({ id: 2001, status });
+        expect(parsed.id).toBe(2001);
+        expect(parsed.status).toBe(status);
+      }
+    });
+
+    it('should fail validation when order ID is missing, 0, negative, or not an integer', () => {
+      expect(() => schema.parse({ status: 'completed' })).toThrow();
+      expect(() => schema.parse({ id: 0, status: 'completed' })).toThrow();
+      expect(() => schema.parse({ id: -5, status: 'completed' })).toThrow();
+      expect(() => schema.parse({ id: 2.5, status: 'completed' })).toThrow();
+    });
+
+    it('should fail validation when status is missing or unsupported', () => {
+      expect(() => schema.parse({ id: 2001 })).toThrow();
+      expect(() => schema.parse({ id: 2001, status: 'shipped' as unknown as 'completed' })).toThrow();
+      expect(() => schema.parse({ id: 2001, status: 'delivered' as unknown as 'completed' })).toThrow();
+      expect(() => schema.parse({ id: 2001, status: '' as unknown as 'completed' })).toThrow();
+    });
   });
 });

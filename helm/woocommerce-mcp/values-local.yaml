@@ -1,0 +1,101 @@
+# ==============================================================================
+# Local Kubernetes Values (Minikube, Kind, k3d, Docker Desktop)
+# Usage:
+#   helm install woocommerce-mcp ./helm/woocommerce-mcp -f ./helm/woocommerce-mcp/values-local.yaml
+# ==============================================================================
+
+secrets:
+  woocommerceConsumerKey: "ck_dev_local_test_key"
+  woocommerceConsumerSecret: "cs_dev_local_test_secret"
+  gatewayApiKey: "gw_sec_dev_local_key_123"
+
+database:
+  enabled: true
+  image:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  auth:
+    rootPassword: "local_dev_mariadb_root_pass"
+    database: "wordpress"
+    username: "wp_user"
+    password: "local_dev_wp_password"
+  persistence:
+    enabled: true
+    storageClass: "" # Uses default local storage class (standard, local-path)
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+wordpress:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: wordpress
+    tag: "6.7-php8.2-apache"
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    storageClass: "" # Uses default local storage class
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+woocommerceMcp:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: woocommerce-mcp-gateway
+    tag: "local"
+    pullPolicy: IfNotPresent
+  logLevel: "debug"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+gateway:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: woocommerce-mcp-gateway
+    tag: "local"
+    pullPolicy: IfNotPresent
+  logLevel: "debug"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+dashboard:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: "nginx" # or "traefik" for k3d/k3s
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  storefront:
+    enabled: true
+    host: "store.local.test"
+  gateway:
+    enabled: true
+    host: "gateway.local.test"
+  tls: []

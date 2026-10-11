@@ -62,6 +62,8 @@ export const listRecentOrdersInputSchema = {
     .describe('Sort direction (default: "desc" for most recent first)'),
 };
 
+export const listOrdersInputSchema = listRecentOrdersInputSchema;
+
 export const getOrderInputSchema = {
   id: z
     .number()
@@ -95,6 +97,17 @@ export const getOrderSummaryInputSchema = {
     .int('Order ID must be an integer')
     .positive('Order ID must be a positive number')
     .describe('The unique numeric WooCommerce order ID (e.g. 2001)'),
+};
+
+export const updateOrderStatusInputSchema = {
+  id: z
+    .number()
+    .int('Order ID must be an integer')
+    .positive('Order ID must be a positive number')
+    .describe('The unique numeric WooCommerce order ID (e.g. 2001)'),
+  status: z
+    .enum(WOOCOMMERCE_ORDER_STATUSES)
+    .describe('The target WooCommerce order status: pending, processing, on-hold, completed, cancelled, refunded, failed, trash'),
 };
 
 /**
@@ -157,6 +170,57 @@ export function registerOrderTools(server: McpServer, client: WooCommerceClient)
         };
       } catch (error) {
         logger.warn({ err: error }, 'Failed to execute list_recent_orders');
+        return {
+          isError: true,
+          content: [{ type: 'text', text: formatToolError(error) }],
+        };
+      }
+    }
+  );
+
+  // 1b. list_orders (Canonical MCP name for list_recent_orders)
+  server.tool(
+    'list_orders',
+    'List store orders from WooCommerce with validated pagination, status filtering, and date boundaries. Excludes customer PII.',
+    listRecentOrdersInputSchema,
+    async (args) => {
+      try {
+        if (args.after && args.before) {
+          const afterDate = new Date(args.after).getTime();
+          const beforeDate = new Date(args.before).getTime();
+          if (afterDate > beforeDate) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: 'Validation error: "after" date cannot be later than "before" date.',
+                },
+              ],
+            };
+          }
+        }
+
+        const result = await client.listOrders({
+          page: args.page,
+          per_page: args.per_page,
+          status: args.status,
+          after: args.after,
+          before: args.before,
+          orderby: args.orderby,
+          order: args.order,
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.warn({ err: error }, 'Failed to execute list_orders');
         return {
           isError: true,
           content: [{ type: 'text', text: formatToolError(error) }],
@@ -273,6 +337,33 @@ export function registerOrderTools(server: McpServer, client: WooCommerceClient)
         };
       } catch (error) {
         logger.warn({ err: error, orderId: args.id }, 'Failed to execute get_order_summary');
+        return {
+          isError: true,
+          content: [{ type: 'text', text: formatToolError(error) }],
+        };
+      }
+    }
+  );
+
+  // 5. update_order_status
+  server.tool(
+    'update_order_status',
+    'Update the status of an existing WooCommerce order (e.g. processing, completed, on-hold, cancelled, refunded, failed, trash).',
+    updateOrderStatusInputSchema,
+    async (args) => {
+      try {
+        const result = await client.updateOrderStatus(args.id, args.status);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.warn({ err: error, orderId: args.id, status: args.status }, 'Failed to execute update_order_status');
         return {
           isError: true,
           content: [{ type: 'text', text: formatToolError(error) }],

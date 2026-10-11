@@ -1,0 +1,23 @@
+{{- if and .Values.wordpress.enabled .Values.wordpress.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "woocommerce-mcp.wordpress.fullname" . }}-content
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+spec:
+  accessModes:
+    {{- toYaml .Values.wordpress.persistence.accessModes | nindent 4 }}
+  {{- if .Values.wordpress.persistence.storageClass }}
+  {{- if eq "-" .Values.wordpress.persistence.storageClass }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.wordpress.persistence.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.wordpress.persistence.size | quote }}
+{{- end }}

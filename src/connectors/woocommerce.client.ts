@@ -10,6 +10,8 @@ import {
   WooCommerceValidationError,
 } from './woocommerce.errors.js';
 import type {
+  CreateProductParams,
+  CreatedProductResult,
   OrderDetail,
   OrderLineItem,
   OrderListParams,
@@ -20,6 +22,8 @@ import type {
   ProductSummary,
   SafeCustomerSummary,
   StoreConfigCheckResult,
+  UpdateOrderStatusParams,
+  UpdatedOrderResult,
 } from './woocommerce.types.js';
 
 export interface WooCommerceClientOptions {
@@ -204,13 +208,104 @@ export class WooCommerceClient {
   }
 
   /**
+   * Create a new product in WooCommerce catalog
+   */
+  public async createProduct(params: CreateProductParams): Promise<CreatedProductResult> {
+    if (!params.name || typeof params.name !== 'string' || params.name.trim().length === 0) {
+      throw new WooCommerceValidationError('Product name is required and cannot be empty');
+    }
+
+    const body: Record<string, unknown> = {
+      name: params.name.trim(),
+    };
+
+    if (params.type) body['type'] = params.type;
+    if (params.regular_price !== undefined) body['regular_price'] = params.regular_price;
+    if (params.description !== undefined) body['description'] = params.description;
+    if (params.short_description !== undefined) body['short_description'] = params.short_description;
+    if (params.sku !== undefined) body['sku'] = params.sku.trim();
+    if (params.status !== undefined) body['status'] = params.status;
+    if (params.manage_stock !== undefined) body['manage_stock'] = params.manage_stock;
+    if (params.stock_quantity !== undefined) body['stock_quantity'] = params.stock_quantity;
+    if (params.stock_status !== undefined) body['stock_status'] = params.stock_status;
+
+    const { data } = await this.request<Record<string, unknown>>('products', {
+      method: 'POST',
+      body,
+    });
+
+    return {
+      id: Number(data['id']),
+      name: String(data['name'] || params.name),
+      sku: String(data['sku'] || ''),
+      price: String(data['price'] || data['regular_price'] || ''),
+      status: String(data['status'] || 'publish'),
+    };
+  }
+
+  /**
+   * Update the status of an existing order
+   */
+  public async updateOrderStatus(
+    id: number,
+    status: UpdateOrderStatusParams['status']
+  ): Promise<UpdatedOrderResult> {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new WooCommerceValidationError('Order ID must be a positive integer');
+    }
+    const validStatuses: UpdateOrderStatusParams['status'][] = [
+      'pending',
+      'processing',
+      'on-hold',
+      'completed',
+      'cancelled',
+      'refunded',
+      'failed',
+      'trash',
+    ];
+    if (!status || typeof status !== 'string' || !validStatuses.includes(status)) {
+      throw new WooCommerceValidationError(
+        `Invalid order status '${status}'. Supported statuses: ${validStatuses.join(', ')}`
+      );
+    }
+
+    try {
+      const { data } = await this.request<Record<string, unknown>>(`orders/${id}`, {
+        method: 'PUT',
+        body: { status },
+      });
+
+      return {
+        id: Number(data['id'] || id),
+        status: String(data['status'] || status),
+      };
+    } catch (err) {
+      if (err instanceof WooCommerceNotFoundError || (err instanceof WooCommerceError && err.statusCode === 404)) {
+        throw new WooCommerceNotFoundError('Order', id);
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Internal HTTP execution with timeout, safe parsing, and error mapping
    */
   private async request<T>(
     endpoint: string,
-    params?: Record<string, string | number>,
+    paramsOrOptions?: Record<string, string | number> | { method?: string; params?: Record<string, string | number>; body?: unknown },
     retryCount = 0
   ): Promise<{ data: T; headers: Headers }> {
+    const isOptionsObject =
+      paramsOrOptions &&
+      typeof paramsOrOptions === 'object' &&
+      ('method' in paramsOrOptions || 'body' in paramsOrOptions || 'params' in paramsOrOptions);
+
+    const method: string = (isOptionsObject && paramsOrOptions && 'method' in paramsOrOptions ? (paramsOrOptions as { method?: string }).method : 'GET') || 'GET';
+    const params = isOptionsObject
+      ? (paramsOrOptions as { params?: Record<string, string | number> }).params
+      : (paramsOrOptions as Record<string, string | number> | undefined);
+    const body = isOptionsObject ? (paramsOrOptions as { body?: unknown }).body : undefined;
+
     // Sanitized endpoint path validation
     const cleanEndpoint = endpoint.replace(/^\/+/, '');
     const url = new URL(`${this.baseUrl}/wp-json/wc/v3/${cleanEndpoint}`);
@@ -227,13 +322,20 @@ export class WooCommerceClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers: Record<string, string> = {
+        Authorization: this.authHeader,
+        Accept: 'application/json',
+        'User-Agent': 'WooCommerce-MCP-Gateway/1.0.0',
+      };
+
+      if (body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
+
       const response = await this.fetchFn(url.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: this.authHeader,
-          Accept: 'application/json',
-          'User-Agent': 'WooCommerce-MCP-Gateway/1.0.0',
-        },
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
 
@@ -243,6 +345,7 @@ export class WooCommerceClient {
         {
           upstreamHost: url.hostname,
           upstreamPath: url.pathname,
+          method,
           statusCode: response.status,
         },
         'WooCommerce upstream HTTP response received'
@@ -258,7 +361,7 @@ export class WooCommerceClient {
         if (retryCount === 0 && retryAfterMs <= 2000) {
           logger.warn({ retryAfterMs }, 'Rate limited by WooCommerce. Retrying once...');
           await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
-          return this.request<T>(endpoint, params, retryCount + 1);
+          return this.request<T>(endpoint, paramsOrOptions, retryCount + 1);
         }
 
         throw new WooCommerceRateLimitError(

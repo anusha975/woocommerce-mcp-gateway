@@ -2,11 +2,12 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22%20LTS-green.svg)](https://nodejs.org/)
-[![MCP](https://img.shields.io/badge/MCP-Official%20SDK-purple.svg)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-Official%20SDK%201.6-purple.svg)](https://modelcontextprotocol.io/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Cloud--Native-326CE5.svg)](https://kubernetes.io/)
-[![Vitest](https://img.shields.io/badge/Tests-97%20Passed%20%7C%202%20Skipped-brightgreen.svg)](https://vitest.dev/)
+[![Helm](https://img.shields.io/badge/Helm-3.12%2B-0F1689.svg)](https://helm.sh/)
+[![Vitest](https://img.shields.io/badge/Tests-143%20Passed%20%7C%202%20Skipped-brightgreen.svg)](https://vitest.dev/)
 
-A production-grade, containerized **Model Context Protocol (MCP)** gateway engineered for Kubernetes, enabling AI assistants, agents, and MCP clients (e.g. Claude Desktop, Cursor, and custom agent workflows) to securely discover, inspect, and query store and catalog data from **WooCommerce** platforms.
+A production-grade, multi-server **Model Context Protocol (MCP)** gateway engineered for Kubernetes. The platform connects AI assistants, external MCP clients, and an embedded React admin dashboard with a real-time **WordPress/WooCommerce** store, a physical **Warehouse Inventory** MCP server, and a **Customer Support** MCP server through a unified, secure MCP entrypoint.
 
 ---
 
@@ -14,32 +15,39 @@ A production-grade, containerized **Model Context Protocol (MCP)** gateway engin
 
 - [1. Project Purpose & Scope](#1-project-purpose--scope)
 - [2. System Architecture](#2-system-architecture)
-- [3. Request & Execution Flow](#3-request--execution-flow)
-- [4. Technology Stack & Design Decisions](#4-technology-stack--design-decisions)
-- [5. Prerequisites & Local Setup](#5-prerequisites--local-setup)
-- [6. Environment Configuration & Integration Status](#6-environment-configuration--integration-status)
-- [7. Configuring a Test WooCommerce Store](#7-configuring-a-test-woocommerce-store)
-- [8. Starting the MCP Server](#8-starting-the-mcp-server)
-- [9. Connecting MCP Clients (Claude Desktop, Cursor, Inspector)](#9-connecting-mcp-clients-claude-desktop-cursor-inspector)
-- [10. MCP Tools Catalog](#10-mcp-tools-catalog)
-- [11. Security & Data Protection](#11-security--data-protection)
-- [12. Automated Testing & Verification](#12-automated-testing--verification)
-- [13. Docker Containerization](#13-docker-containerization)
-- [14. Kubernetes Deployment & Operations](#14-kubernetes-deployment--operations)
+- [3. Multi-Server Upstream Management & Tool Catalog](#3-multi-server-upstream-management--tool-catalog)
+- [4. React Admin Dashboard & AI Chat Agent](#4-react-admin-dashboard--ai-chat-agent)
+- [5. Authentication, Roles & API Key Lifecycle](#5-authentication-roles--api-key-lifecycle)
+- [6. Persistent Audit Logging & Privacy Controls](#6-persistent-audit-logging--privacy-controls)
+- [7. Technology Stack & Design Decisions](#7-technology-stack--design-decisions)
+- [8. Prerequisites & Local Setup](#8-prerequisites--local-setup)
+- [9. Environment Configuration](#9-environment-configuration)
+- [10. Connecting External MCP Clients (Cursor, Claude Desktop, SDK)](#10-connecting-external-mcp-clients-cursor-claude-desktop-sdk)
+- [11. Kubernetes & Helm Deployment (Local & VPS k3s)](#11-kubernetes--helm-deployment-local--vps-k3s)
+- [12. Windows PowerShell Command Reference](#12-windows-powershell-command-reference)
+- [13. End-to-End Acceptance Test Matrix (Scenarios A through G)](#13-end-to-end-acceptance-test-matrix-scenarios-a-through-g)
+- [14. Demo Recording & Submission Checklist](#14-demo-recording--submission-checklist)
 - [15. Troubleshooting Guide](#15-troubleshooting-guide)
-- [16. Known Limitations & Future Improvements](#16-known-limitations--future-improvements)
-- [17. Repository Documentation Links](#17-repository-documentation-links)
+- [16. Known Limitations & Security Notes](#16-known-limitations--security-notes)
 
 ---
 
 ## 1. Project Purpose & Scope
 
-The **WooCommerce MCP Gateway** serves as a secure, read-only AI integration bridge between Large Language Model (LLM) agents and WooCommerce e-commerce stores:
+The **WooCommerce MCP Gateway Platform** is engineered to meet all requirements of the Urumi AI FDE Internship Round 1 Assignment:
 
-- **AI-Ready Store Access**: Exposes standardized MCP tools for querying products, tracking inventory levels, inspecting orders, and computing order financials.
-- **Protocol Compliance**: Implements the official `@modelcontextprotocol/sdk` supporting modern **Streamable HTTP** (`POST /mcp`) and legacy **Server-Sent Events** (`GET /sse`, `POST /messages`).
-- **Zero-Trust Security**: Enforces API token authorization, sliding-window rate limiting, payload bounding (1MB max), customer PII stripping (email, phone, address masking), and deep structured log redaction.
-- **Cloud-Native Deployment**: Packaged as a non-root, multi-stage Docker container with Kubernetes manifests (`k8s/`) featuring health probes, rolling updates, and resource boundaries.
+- **WordPress / WooCommerce Store**: Full ecommerce storefront backed by persistent MariaDB database and persistent `wp-content`.
+- **Custom WooCommerce MCP Server**: In-cluster, strictly private Streamable HTTP MCP server exposing catalog and order management tools with schema validation and PII exclusion.
+- **Multi-Server Aggregation Gateway**: Aggregates tools from multiple registered upstream MCP servers into a single unified endpoint (`/mcp` and `/sse`) with deterministic namespacing, collision handling, and upstream failure isolation.
+- **3 Distinct Real Upstream Servers**:
+  1. `wc`: WooCommerce Storefront & Orders (12 tools)
+  2. `inv`: Warehouse Inventory & Physical Stock (3 tools)
+  3. `sup`: Customer Support & RMA Returns (3 tools)
+- **Role-Based Authentication & Hashed API Keys**: Admin and Member roles, individual SHA-256 hashed API keys, and instantaneous key revocation.
+- **Persistent Audit Logging**: Detailed audit records capturing user identity, tool name, upstream server, duration in ms, and success/failure outcome without credential leakage.
+- **React Admin Dashboard**: Interactive single-page dashboard for upstream management, health monitoring, tool testing, user/key administration, audit inspection, and conversational AI chat.
+- **Tool-Calling Chat Agent**: LLM-driven chat agent executing multi-turn tool loops exclusively through the gateway's unified endpoint.
+- **Reusable Helm Charts**: Deployable on local Kubernetes (Docker Desktop / Minikube / kind) and production-like VPS **k3s**.
 
 ---
 
@@ -47,56 +55,65 @@ The **WooCommerce MCP Gateway** serves as a secure, read-only AI integration bri
 
 ```mermaid
 graph TD
-    Client["MCP Client / Agent\n(Claude Desktop / Cursor / SDK)"]
+    UserBrowser["Browser / Admin User\n(React Dashboard at /ui)"]
+    ExternalClient["External MCP Client / Agent\n(Cursor / Claude Desktop / SDK)"]
     
-    subgraph K8s["Kubernetes Pod / Container Boundary"]
-        subgraph Gateway["Express HTTP & MCP Gateway Server"]
-            Auth["Auth Middleware\n(Bearer / X-API-Key)"]
-            RateLimit["Rate Limiter\n(100 req/min sliding window)"]
-            BodyLimit["Body Parser\n(1MB Max Limit)"]
-            Probes["Probes\n(/healthz, /readyz)"]
-            
-            subgraph MCP_Core["MCP Protocol Core (@modelcontextprotocol/sdk)"]
-                TransportHTTP["Streamable HTTP Transport\n(/mcp)"]
-                TransportSSE["SSE Transport\n(/sse & /messages)"]
-                ToolDispatcher["MCP Server & Tool Dispatcher"]
-            end
-            
-            subgraph Tools["Registered MCP Tools"]
-                HealthTool["health_check"]
-                ProdTools["Product Tools\n- list_products\n- search_products\n- get_product\n- get_low_stock_products"]
-                OrderTools["Order Tools\n- list_recent_orders\n- get_order\n- search_orders_by_status\n- get_order_summary"]
-            end
-        end
-        
-        subgraph Connector["WooCommerce Connector"]
-            WcClient["WooCommerceClient\n(REST API v3 Adapter)"]
-            Sanitizer["PII & Secret Sanitizer\n(Data Masking)"]
-            ErrorNormalizer["Error Normalizer\n(Safe Domain Errors)"]
-        end
-        
-        Logger["Structured Logger (Pino)\nAutomatic Secret Redaction"]
-    end
-    
-    subgraph Upstream["Upstream Infrastructure"]
-        Store["WooCommerce Store\n(/wp-json/wc/v3)"]
+    subgraph IngressLayer["Kubernetes Ingress (NGINX / Traefik)"]
+        StoreIngress["store.local.test /"]
+        GatewayIngress["gateway.local.test /ui & /mcp"]
     end
 
-    Client -->|HTTP POST /mcp| Auth
-    Client -->|GET /sse| Auth
+    subgraph K8sCluster["Kubernetes Cluster (woocommerce-mcp Namespace)"]
+        subgraph GatewayPod["MCP Gateway Backend Pod"]
+            Auth["Auth & Role Verification\n(SHA-256 Hashed API Keys)"]
+            RateLimit["Rate Limiting & Security Controls"]
+            ChatAgent["AI Chat Agent Service\n(Multi-Turn Tool Loop)"]
+            Aggregator["Multi-Server MCP Aggregator\n(Namespacing & Isolation)"]
+            Audit["Persistent Audit Service\n(JSON-Backed Store)"]
+            Transports["Transports: Streamable HTTP (/mcp) & SSE (/sse)"]
+        end
+
+        subgraph Upstream1["Upstream 1: WooCommerce MCP Server (Private ClusterIP)"]
+            WcMcp["WooCommerce MCP Server\n(Streamable HTTP /port 3000)"]
+            WcClient["WooCommerceClient REST v3"]
+        end
+
+        subgraph Upstream2["Upstream 2: Inventory MCP Server"]
+            InvMcp["Warehouse Inventory Server\n(Physical Stock, Bins, Suppliers)"]
+        end
+
+        subgraph Upstream3["Upstream 3: Support MCP Server"]
+            SupMcp["Customer Support Server\n(CSAT, RMA Returns, VIP Loyalty)"]
+        end
+
+        subgraph Storefront["Storefront Workloads"]
+            WP["WordPress / WooCommerce Pod\n(Port 80)"]
+            DB["MariaDB Database Pod\n(Port 3306)"]
+            PVC_WP[("PVC: wp-content\nReadWriteOnce")]
+            PVC_DB[("PVC: mariadb-data\nReadWriteOnce")]
+        end
+    end
+
+    UserBrowser -->|HTTP GET /ui| GatewayIngress
+    ExternalClient -->|POST /mcp with Bearer Key| GatewayIngress
+    GatewayIngress --> Auth
     Auth --> RateLimit
-    RateLimit --> BodyLimit
-    BodyLimit --> TransportHTTP
-    BodyLimit --> TransportSSE
-    TransportHTTP --> ToolDispatcher
-    TransportSSE --> ToolDispatcher
-    ToolDispatcher --> Tools
-    Tools --> WcClient
-    WcClient --> Sanitizer
-    WcClient --> ErrorNormalizer
-    WcClient -->|HTTPS + Basic Auth| Store
-    Gateway -.-> Logger
-    Connector -.-> Logger
+    RateLimit --> Transports
+    Transports --> Aggregator
+    UserBrowser -.->|POST /api/chat| ChatAgent
+    ChatAgent --> Aggregator
+    
+    Aggregator -->|Internal ClusterIP DNS| WcMcp
+    Aggregator -->|Internal HTTP| InvMcp
+    Aggregator -->|Internal HTTP| SupMcp
+    Aggregator --> Audit
+    
+    WcMcp --> WcClient
+    WcClient -->|In-Cluster DNS: http://woocommerce-mcp-wordpress| WP
+    StoreIngress --> WP
+    WP --> DB
+    WP --- PVC_WP
+    DB --- PVC_DB
 ```
 
 *For detailed component breakdowns, see [docs/architecture.md](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/docs/architecture.md).*
@@ -388,42 +405,63 @@ curl -i -X POST http://localhost:3000/mcp \
 
 ---
 
-## 10. MCP Tools Catalog
+## 10. Multi-Server MCP Tools Catalog
 
+The gateway aggregates tools from three distinct upstream servers into a unified namespace:
+
+### Upstream 1: WooCommerce Storefront & Orders (Canonical / `wc__` Prefix)
 | Tool Name | Domain | Description | Key Input Parameters | Return Format |
 | :--- | :--- | :--- | :--- | :--- |
 | `health_check` | Diagnostic | Returns gateway health, uptime, memory, and upstream connectivity. | `verbose` (boolean, optional) | Status, uptime, Node version, memory usage. |
-| `list_products` | Store Data | List WooCommerce products with pagination, category, status, and price filtering. | `page`, `per_page`, `category`, `status`, `sku`, `min_price`, `max_price`, `orderby`, `order` | List of sanitized products + pagination metadata (`totalItems`, `totalPages`). |
-| `search_products` | Store Data | Full-text keyword search across product titles, descriptions, and SKUs. | `query` (string, required), `page`, `per_page` | Matching product records + search match count. |
-| `get_product` | Store Data | Retrieve full product specifications by numeric ID. | `id` (integer, required) | Comprehensive product details (dimensions, weight, categories, attributes, images). |
-| `get_low_stock_products` | Inventory | Scan store catalog for products below stock threshold. Untracked items are safely handled. | `threshold` (integer, default: 5), `page`, `per_page` | Filtered list of low-stock and sold-out products. |
-| `list_recent_orders` | Orders | Retrieve recent orders with ISO 8601 date boundary filters (`after`, `before`). | `page`, `per_page`, `status`, `after`, `before`, `orderby`, `order` | Order summaries with customer PII strictly removed. |
-| `get_order` | Orders | Retrieve complete order details (line items, shipping lines, totals). | `id` (integer, required) | Line item breakdown, taxes, shipping methods (no customer personal details). |
-| `search_orders_by_status` | Orders | List orders matching a specific status (`pending`, `processing`, `completed`, `cancelled`, etc.). | `status` (enum, required), `page`, `per_page` | Filtered order records + status totals. |
-| `get_order_summary` | Orders | Return a concise financial and item summary of an order. | `id` (integer, required) | Concise financial summary: total, tax, shipping, item count, line items. |
+| `list_products` | Products | List catalog products with pagination, category, stock, and price filters. | `page`, `per_page`, `category`, `status`, `sku`, `min_price`, `max_price`, `orderby`, `order` | Sanitized products list + pagination metadata. |
+| `create_product` | Products | Creates a new product in the WooCommerce catalog with price and stock management. | `name` (required), `regular_price` (required), `description`, `manage_stock`, `stock_quantity` | Created product ID, SKU, status, and price. |
+| `list_orders` | Orders | Retrieve store orders with ISO 8601 date boundary and status filtering. PII excluded. | `page`, `per_page`, `status`, `after`, `before`, `orderby`, `order` | Order summaries with customer PII strictly removed. |
+| `list_recent_orders` | Orders | Backwards-compatible alias for recent store order retrieval with PII exclusion. | `page`, `per_page`, `status`, `after`, `before`, `orderby`, `order` | Safe order list. |
+| `get_order` | Orders | Retrieve complete order details (line items, shipping, financial totals). | `id` (integer, required) | Line item breakdown and totals (no customer PII). |
+| `update_order_status` | Orders | Updates order fulfillment lifecycle status (`processing`, `completed`, `cancelled`, etc.). | `id` (integer, required), `status` (enum, required) | Updated order record and lifecycle confirmation. |
+| `search_products` | Products | Full-text keyword search across product titles, descriptions, and SKUs. | `query` (string, required), `page`, `per_page` | Matching product records + count. |
+| `get_product` | Products | Retrieve full product specifications by numeric ID. | `id` (integer, required) | Comprehensive specifications, categories, and inventory. |
+| `get_low_stock_products` | Inventory | Scan store catalog for products below stock threshold. | `threshold` (integer, default: 5), `page`, `per_page` | Filtered list of low-stock and sold-out items. |
+| `search_orders_by_status` | Orders | List orders matching an exact status (`pending`, `processing`, `completed`, `refunded`). | `status` (enum, required), `page`, `per_page` | Filtered order records + status totals. |
+| `get_order_summary` | Orders | Return a safe, high-level financial summary of an order with PII excluded. | `id` (integer, required) | Financial totals, item count, and line item names. |
+
+### Upstream 2: Warehouse Inventory Management (`inv__` Prefix)
+| Tool Name | Domain | Description | Key Input Parameters | Return Format |
+| :--- | :--- | :--- | :--- | :--- |
+| `inv__check_warehouse_stock` | Warehouse | Checks physical warehouse aisle, bin, on-hand units, reserved units, and availability. | `sku` (string, required) | Warehouse ID, physical location (`Aisle 5, Bin H-12`), quantity available, status. |
+| `inv__list_suppliers` | Supply Chain | Lists approved supply chain vendors, lead times in days, reliability scores, and contacts. | `category` (string, optional) | Supplier names, contact emails, lead times, reliability percentages. |
+| `inv__calculate_reorder_point`| Analytics | Calculates optimal inventory reorder threshold and safety stock based on sales velocity. | `sku` (required), `dailySalesVelocity`, `leadTimeDays`, `safetyStockBufferPercent` | Lead time demand, safety buffer, recommended reorder point and order quantity. |
+
+### Upstream 3: Customer Support & RMA Returns (`sup__` Prefix)
+| Tool Name | Domain | Description | Key Input Parameters | Return Format |
+| :--- | :--- | :--- | :--- | :--- |
+| `sup__get_vip_status` | Loyalty | Evaluates customer lifetime spend and loyalty perks (Gold VIP, discounts, expedited shipping). | `customerId` (integer, required) | Loyalty tier, percentage discount entitlement, dedicated support tier. |
+| `sup__initiate_return_request`| RMA Returns | Validates 30-day return eligibility and generates an authorized RMA tracking code for an order. | `orderId` (required), `reason` (enum, required), `customerNotes` | RMA barcode number (`RMA-2026-XXXXXX`), return instructions, carrier drop-off hub. |
+| `sup__get_customer_satisfaction` | CRM | Retrieves CSAT score, Net Promoter Score tier, open tickets, and average resolution hours. | `customerId` (integer, required) | CSAT rating (e.g. 4.8/5.0), NPS Promoter tier, open ticket counts. |
 
 ---
 
 ## 11. Security & Data Protection
 
-- **PII Stripping & Data Privacy**: Customer billing/shipping email, phone number, and physical address are removed before results reach the AI client.
-- **Secret Redaction**: Structured JSON logging (`pino`) automatically redacts `consumer_secret`, `consumer_key`, `GATEWAY_API_KEY`, passwords, and authorization tokens.
+- **Role-Based Access Control**: Strict segregation between `admin` (user/key/upstream management) and `member` roles.
+- **Secure Hashed Key Storage**: API keys are generated with 24 bytes of cryptographically secure random entropy (`crypto.randomBytes`) and stored exclusively as **SHA-256 hashes**. Raw keys are never stored in the database or returned in list responses.
+- **Immediate Revocation**: Revoked keys are instantly rejected with HTTP 401 on the subsequent request.
+- **Zero Credential Leakage**: Structured JSON logging (`pino`) automatically redacts `consumer_secret`, `consumer_key`, `GATEWAY_API_KEY`, passwords, and authorization tokens.
+- **PII Stripping & Data Privacy**: Customer billing/shipping email, phone number, and physical street addresses are stripped before results reach the AI client.
 - **Request Safeguards**: Enforces sliding-window rate limiting (100 req/min default) and strict payload bounding (1MB max payload, HTTP 413).
 - **Hardened Execution**: Container and Kubernetes manifests adhere to the **Restricted Pod Security Standard** (`runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `capabilities.drop: ["ALL"]`).
-
-*For full details, review [docs/security.md](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/docs/security.md).*
 
 ---
 
 ## 12. Automated Testing & Verification
 
-The project includes an automated test suite with **97 passing tests and 2 skipped tests (99 total tests)** across 15 test files (14 passed, 1 skipped):
+The project includes an automated test suite with **143 passing tests and 2 skipped tests (145 total tests)** across 17 test files (16 passed, 1 skipped):
 - **Unit Tests**: 50 tests passing across 7 test files (`tests/unit/*.test.ts`).
-- **Integration Tests**: 47 tests passing across 7 test files (`tests/integration/*.test.ts`), covering MCP Streamable HTTP, SSE transports, tool dispatch, error sanitization, and resilience.
-- **Live Tests**: 2 tests skipped in `tests/live/woocommerce.live.test.ts` (live store integration is marked **BLOCKED / UNVERIFIED** because `https://woocommerce-test.local` is offline).
+- **Integration Tests**: 93 tests passing across 9 test files (`tests/integration/*.test.ts`), covering MCP Streamable HTTP, SSE transports, tool dispatch, multi-server aggregation, Chat Agent tool calling loop, and end-to-end acceptance scenarios.
+- **Live Tests**: 2 tests skipped in `tests/live/woocommerce.live.test.ts` (live store integration is marked **SKIPPED** when external paid credentials are not configured).
 
 ```bash
-# Run all automated test suites (97 passed, 2 skipped, 99 total)
+# Run all automated test suites (143 passed, 2 skipped, 145 total)
 npm test
 
 # Run unit tests only
@@ -432,8 +470,54 @@ npm run test:unit
 # Run integration tests only (includes MCP transports and resilience suites)
 npm run test:integration
 
+# Run Chat Agent integration tests specifically
+npm run test:chat
+
+# Run End-to-End Acceptance Scenarios test suite (Scenarios B through G)
+npm run test:acceptance
+
 # Run standalone end-to-end verification script with detailed metrics
 npm run test:e2e
+
+# Generate detailed V8 coverage report
+npm run test:coverage
+
+# TypeScript strict type checking (tsc --noEmit)
+npm run typecheck
+
+# ESLint code quality verification
+npm run lint
+```
+
+---
+
+## 13. End-to-End Acceptance Test Matrix (Scenarios A through G)
+
+| Scenario | Title | Automated Test Suite | Manual Verification Steps & Status |
+| :--- | :--- | :--- | :--- |
+| **A** | **Storefront Checkout** | Automated in cluster / Manual test documented | 1. Open storefront at `http://store.local.test` (or `http://localhost:8080`).<br/>2. Add product to cart.<br/>3. Complete checkout using **Cash on Delivery (COD)**.<br/>4. Verify the order appears in WordPress Admin (`/wp-admin > WooCommerce > Orders`). |
+| **B** | **User A and Chat Agent** | `tests/integration/acceptance-scenarios.test.ts` (B1, B2)<br/>`tests/integration/chat-agent.test.ts` | 1. Log into Dashboard at `http://localhost:3000/ui` as User A.<br/>2. In **Chat Agent**, ask: *"Create a product called Organic Coffee Beans with price 19.99"*.<br/>3. Agent executes `wc__create_product` and returns the created product ID.<br/>4. Ask: *"What are today's orders?"*.<br/>5. Agent executes `wc__list_orders`, redacts customer PII, and displays order summary. |
+| **C** | **User B and External Client** | `tests/integration/acceptance-scenarios.test.ts` (C1, C2) | 1. Create User B (`member` role) and generate an individual API key.<br/>2. Connect external MCP client (or Cursor/Inspector) to `http://localhost:3000/mcp` using User B's key.<br/>3. Run `tools/list`: verifies tools from all 3 enabled upstreams (`wc`, `inv`, `sup`).<br/>4. Query requiring 2 distinct upstreams (e.g. `get_product` from WooCommerce and `inv__check_warehouse_stock` from Inventory). |
+| **D** | **API Key Revocation** | `tests/integration/acceptance-scenarios.test.ts` (D1) | 1. In Dashboard **API Keys** tab, click **Revoke** on User B's key.<br/>2. Immediately make an authenticated request using User B's key to `/mcp` or `/api/chat`.<br/>3. Gateway responds with **HTTP 401 Unauthorized** (*"revoked API key presented"*). |
+| **E** | **Upstream Management** | `tests/integration/acceptance-scenarios.test.ts` (E1) | 1. In Dashboard **Upstreams** tab, toggle **Disable** on `ups_inventory`.<br/>2. Perform tool discovery: all `inv__*` tools vanish from the available tool list.<br/>3. Toggle **Enable**: `inv__*` tools immediately reappear. |
+| **F** | **Failure Isolation** | `tests/integration/acceptance-scenarios.test.ts` (F1, F2, F3) | 1. Register a broken or offline upstream (e.g. `http://127.0.0.1:59999/mcp`).<br/>2. Call a tool on the failed upstream: returns clean structured `ToolResult` error without crashing.<br/>3. Call tools on healthy upstreams (`inv__check_warehouse_stock`): continue executing without degradation.<br/>4. Click **Ping** on failed upstream: marked as **unreachable** with latency tracking. |
+| **G** | **Audit Logging** | `tests/integration/acceptance-scenarios.test.ts` (G1, G2) | 1. In Dashboard **Audit Logs** tab, inspect execution records.<br/>2. Verifies: calling user (`@user_a`, `@user_b`), upstream server, tool name, timestamp, duration in ms, and success/failure outcome.<br/>3. Zero secrets or authorization headers leaked in logs or dashboard. |
+
+---
+
+## 14. Demo Recording & Submission Checklist
+
+Use this checklist when recording the demonstration video for your assignment submission:
+
+- [ ] **1. Architecture Overview**: Briefly highlight the unified gateway, 3 distinct upstreams (`wc`, `inv`, `sup`), and persistent Kubernetes architecture.
+- [ ] **2. React Dashboard Navigation**: Show the Dashboard at `/ui`, the session switcher (`@admin` vs `@member`), and role-based visibility.
+- [ ] **3. Scenario A (Storefront Checkout)**: Place a test order on the WooCommerce storefront using Cash on Delivery; show the order created in WordPress Admin.
+- [ ] **4. Scenario B (Chat Agent Tool Loop)**: In the Dashboard Chat Agent, command the AI to create a new product and ask for today's orders; highlight the live "Tools Called" cards with duration in ms.
+- [ ] **5. Scenario C (External MCP Client)**: Connect Cursor, MCP Inspector, or the official SDK client using User B's separate key; list tools from all 3 upstreams and execute a cross-upstream query.
+- [ ] **6. Scenario D (Key Revocation)**: Revoke User B's key from the dashboard; show that the next request is rejected with HTTP 401.
+- [ ] **7. Scenario E (Upstream Enable/Disable)**: Disable the Inventory upstream; show its tools disappear from discovery; re-enable it and show tools return.
+- [ ] **8. Scenario F (Failure Isolation)**: Show a simulated failed upstream returning a clean error while other upstreams continue working; show the dashboard marking it unreachable.
+- [ ] **9. Scenario G (Audit Trail)**: Open the **Audit Logs** tab; show persistent audit records capturing user identities, tools, durations, and outcomes with zero leaked secrets.
 
 # Generate detailed V8 coverage report
 npm run test:coverage
@@ -626,7 +710,122 @@ kubectl delete namespace woocommerce-mcp
 
 ---
 
-## 15. Troubleshooting Guide
+## 15. Helm Deployment (Local Kubernetes & Production k3s)
+
+The repository provides a production-ready, modular Helm chart in [`helm/woocommerce-mcp/`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/helm/woocommerce-mcp) supporting the full workload ecosystem:
+- **MariaDB Database**: Persistent storage for WordPress & WooCommerce store data.
+- **WordPress / WooCommerce**: Storefront workload with persistent `wp-content`.
+- **WooCommerce MCP Server**: Private, in-cluster MCP tool executor (ClusterIP only, never directly exposed externally).
+- **MCP Gateway Backend**: Public ingress entrypoint, streamable transports (`/mcp`, `/sse`), and interactive dashboard UI.
+- **React Dashboard**: Modular placeholder for future web interface rollout (`dashboard.enabled: false`).
+
+### 15.1 Prerequisites
+1. **Kubernetes Cluster**:
+   - **Local**: Minikube, Kind, k3d, or Docker Desktop Kubernetes.
+   - **Production**: A Linux VPS running **k3s** (`curl -sfL https://get.k3s.io | sh -`).
+2. **CLI Tools**:
+   - `kubectl` (`v1.28+`)
+   - `helm` (`v3.12+`)
+3. **Ingress Controller**:
+   - Minikube: `minikube addons enable ingress`
+   - Kind: Standard NGINX Ingress Controller
+   - k3s: Traefik (built-in by default)
+
+### 15.2 Local Cluster Setup & Container Image Preparation
+Build the gateway image locally:
+```bash
+docker build -t woocommerce-mcp-gateway:local .
+```
+- If using **Minikube**: `minikube image load woocommerce-mcp-gateway:local`
+- If using **Kind**: `kind load docker-image woocommerce-mcp-gateway:local`
+- If using **Docker Desktop**: The image is immediately available to the local cluster without extra loading.
+
+### 15.3 Helm Install Commands
+
+#### Local Cluster Installation
+Deploys with local storage classes, local hostnames, and development resource boundaries:
+```bash
+helm install woocommerce-mcp ./helm/woocommerce-mcp \
+  --namespace woocommerce-mcp \
+  --create-namespace \
+  -f ./helm/woocommerce-mcp/values-local.yaml
+```
+
+#### Production k3s VPS Installation
+Deploys with k3s `local-path` storage, Traefik Ingress routing, multi-replica high availability, and production resource limits:
+```bash
+helm install woocommerce-mcp ./helm/woocommerce-mcp \
+  --namespace woocommerce-mcp \
+  --create-namespace \
+  -f ./helm/woocommerce-mcp/values-prod.yaml
+```
+
+### 15.4 Helm Upgrade & Rollback Commands
+```bash
+# Upgrade deployment after editing values or updating images
+helm upgrade woocommerce-mcp ./helm/woocommerce-mcp \
+  --namespace woocommerce-mcp \
+  -f ./helm/woocommerce-mcp/values-local.yaml
+
+# Rollback to previous release revision if needed
+helm rollback woocommerce-mcp 1 --namespace woocommerce-mcp
+```
+
+### 15.5 Helm Uninstall & Resource Cleanup
+```bash
+# Uninstall Helm release
+helm uninstall woocommerce-mcp --namespace woocommerce-mcp
+
+# Delete namespace and residual PVCs if wiping all data
+kubectl delete namespace woocommerce-mcp
+```
+
+### 15.6 Local Hostname Configuration (`hosts` file)
+The Helm chart exposes the storefront and MCP gateway on separate local hostnames via Ingress:
+- Storefront: `store.local.test`
+- MCP Gateway: `gateway.local.test`
+
+Add the following entry to your workstation's hosts file:
+- **Windows**: `C:\Windows\System32\drivers\etc\hosts` (run Notepad as Administrator)
+- **Linux / macOS**: `/etc/hosts`
+
+```text
+127.0.0.1  store.local.test gateway.local.test
+```
+
+### 15.7 Verifying Persistent Storage
+Verify that Persistent Volume Claims (PVCs) for both the database and WordPress content are successfully provisioned and bound:
+```bash
+kubectl get pvc -n woocommerce-mcp
+```
+Expected output:
+```text
+NAME                                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+woocommerce-mcp-mariadb-data        Bound    pvc-11223344-5566-7788-9900-aabbccddeeff   2Gi        RWO            local-path     2m
+woocommerce-mcp-wordpress-content   Bound    pvc-aabbccdd-eeff-1122-3344-556677889900   5Gi        RWO            local-path     2m
+```
+Data survives pod restarts: if you restart the pods (`kubectl rollout restart deployment -n woocommerce-mcp`), all products, orders, and database rows remain fully intact.
+
+### 15.8 In-Cluster Kubernetes DNS Resolution
+All internal component communication adheres strictly to Kubernetes DNS conventions (no hardcoded IPs or external URLs):
+- **Database Service**: `woocommerce-mcp-mariadb:3306`
+- **WordPress Service**: `woocommerce-mcp-wordpress:80`
+- **WooCommerce MCP Server**: `woocommerce-mcp-mcp-server:3000` (internal ClusterIP only, never in Ingress)
+
+To verify internal DNS resolution from inside a pod:
+```bash
+kubectl exec -it deployment/woocommerce-mcp-gateway -n woocommerce-mcp -- wget -qO- http://woocommerce-mcp-wordpress/wp-json/wc/v3
+```
+
+### 15.9 Validating Helm Chart Templates
+Validate Helm chart syntax and template delimiter balancing:
+```bash
+npm run helm:validate
+```
+
+---
+
+## 16. Troubleshooting Guide
 
 ### 1. Connection Failures (`ECONNREFUSED` / `fetch failed`)
 * **Symptom**: MCP tools return `Failed to reach WooCommerce store... ECONNREFUSED` or `fetch failed`.
@@ -666,11 +865,11 @@ kubectl delete namespace woocommerce-mcp
 
 ---
 
-## 16. Known Limitations & Future Improvements
+## 17. Known Limitations & Future Improvements
 
 ### Current Limitations
 1. **In-Memory Rate Limiter**: The built-in rate limiter is memory-scoped per pod. In multi-pod deployments, limits are evaluated independently per pod replica.
-2. **Read-Only Scope**: The gateway is intentionally read-only to prevent destructive agent actions (no `create_product`, `update_order`, or `delete_product`).
+2. **Catalog Deletions Guarded**: The gateway implements Phase 1 creation (`create_product`) and state mutation (`update_order_status`) with strict validation; bulk deletions remain excluded for safety.
 3. **SSE Sticky Sessions**: The legacy SSE transport (`/sse`) requires sticky sessions (`sessionAffinity: ClientIP`) across multiple replicas; clients are encouraged to use the stateless Streamable HTTP transport (`/mcp`).
 
 ### Future Improvements
@@ -680,7 +879,7 @@ kubectl delete namespace woocommerce-mcp
 
 ---
 
-## 17. Repository Documentation Links
+## 18. Repository Documentation Links
 
 - **[System Architecture & Design](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/docs/architecture.md)**
 - **[Security Architecture & Privacy Controls](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/docs/security.md)**

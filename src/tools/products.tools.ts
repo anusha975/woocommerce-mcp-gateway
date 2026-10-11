@@ -104,6 +104,50 @@ export const getLowStockProductsInputSchema = {
     .describe('Batch size of products to inspect per page (1 to 100, default 20)'),
 };
 
+export const createProductInputSchema = {
+  name: z
+    .string()
+    .min(1, 'Product name is required and cannot be empty')
+    .describe('Product name / title'),
+  type: z
+    .enum(['simple', 'variable', 'grouped', 'external'])
+    .default('simple')
+    .describe('Product type: simple, variable, grouped, external (default: simple)'),
+  regular_price: z
+    .string()
+    .optional()
+    .describe('Product regular price in store currency (e.g. "29.99")'),
+  description: z
+    .string()
+    .optional()
+    .describe('Product detailed description (HTML or plain text)'),
+  short_description: z
+    .string()
+    .optional()
+    .describe('Product short description / excerpt'),
+  sku: z
+    .string()
+    .optional()
+    .describe('Unique stock keeping unit (SKU) identifier'),
+  status: z
+    .enum(['draft', 'pending', 'private', 'publish'])
+    .default('publish')
+    .describe('Product status: publish, draft, pending, private (default: publish)'),
+  manage_stock: z
+    .boolean()
+    .optional()
+    .describe('Enable stock management at product level'),
+  stock_quantity: z
+    .number()
+    .int('Stock quantity must be an integer')
+    .optional()
+    .describe('Stock quantity if manage_stock is enabled'),
+  stock_status: z
+    .enum(['instock', 'outofstock', 'onbackorder'])
+    .optional()
+    .describe('Stock status: instock, outofstock, onbackorder'),
+};
+
 /**
  * Formats a safe tool error message masking sensitive information
  */
@@ -292,6 +336,33 @@ export function registerProductTools(server: McpServer, client: WooCommerceClien
         };
       } catch (error) {
         logger.warn({ err: error }, 'Failed to execute get_low_stock_products');
+        return {
+          isError: true,
+          content: [{ type: 'text', text: formatToolError(error) }],
+        };
+      }
+    }
+  );
+
+  // 5. create_product
+  server.tool(
+    'create_product',
+    'Create a new product in the WooCommerce catalog with name, price, description, SKU, type, status, and stock settings.',
+    createProductInputSchema,
+    async (args) => {
+      try {
+        const result = await client.createProduct(args);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.warn({ err: error, productName: args.name }, 'Failed to execute create_product');
         return {
           isError: true,
           content: [{ type: 'text', text: formatToolError(error) }],

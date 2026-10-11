@@ -1,0 +1,212 @@
+# Default values for woocommerce-mcp chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------------
+# 1. Global / Common Secrets
+# ------------------------------------------------------------------------------
+secrets:
+  # Set existingSecret to reuse a pre-created Kubernetes Secret in production
+  existingSecret: ""
+  # Sensitive placeholders for development / initial setup
+  woocommerceConsumerKey: "ck_placeholder_consumer_key"
+  woocommerceConsumerSecret: "cs_placeholder_consumer_secret"
+  gatewayApiKey: "gw_sec_placeholder_api_key_888"
+
+# ------------------------------------------------------------------------------
+# 2. Database Workload (MariaDB / MySQL)
+# ------------------------------------------------------------------------------
+database:
+  enabled: true
+  existingSecret: ""
+  image:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  auth:
+    rootPassword: "mariadb_root_dev_password"
+    database: "wordpress"
+    username: "wp_user"
+    password: "wp_secure_dev_password"
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  probes:
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+# ------------------------------------------------------------------------------
+# 3. Storefront Workload (WordPress / WooCommerce)
+# ------------------------------------------------------------------------------
+wordpress:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: wordpress
+    tag: "6.7-php8.2-apache"
+    pullPolicy: IfNotPresent
+  tablePrefix: "wp_"
+  service:
+    type: ClusterIP
+    port: 80
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  probes:
+    liveness:
+      initialDelaySeconds: 45
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+# ------------------------------------------------------------------------------
+# 4. WooCommerce MCP Server Workload (Private In-Cluster MCP Adapter)
+# ------------------------------------------------------------------------------
+# Requirement 9: Kept internal and strictly private. The gateway communicates with it via ClusterIP.
+woocommerceMcp:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: woocommerce-mcp-gateway
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  logLevel: "info"
+  timeoutMs: "10000"
+  verifySsl: "false" # In-cluster HTTP communication
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  probes:
+    liveness:
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# ------------------------------------------------------------------------------
+# 5. MCP Gateway Backend Workload (Public MCP Entrypoint & Interactive UI)
+# ------------------------------------------------------------------------------
+gateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: woocommerce-mcp-gateway
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  logLevel: "info"
+  upstreamTimeoutMs: "10000"
+  upstreamVerifySsl: "false"
+  rateLimit:
+    windowMs: 60000
+    maxRequests: 100
+  corsAllowedOrigins: "*"
+  maxBodySizeBytes: 1048576
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  probes:
+    liveness:
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# ------------------------------------------------------------------------------
+# 6. React Dashboard Workload (Phase 4 Placeholder)
+# ------------------------------------------------------------------------------
+dashboard:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: woocommerce-mcp-dashboard
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ------------------------------------------------------------------------------
+# 7. Ingress Configuration
+# ------------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  storefront:
+    enabled: true
+    host: "store.local.test"
+    path: "/"
+    pathType: Prefix
+  gateway:
+    enabled: true
+    host: "gateway.local.test"
+    path: "/"
+    pathType: Prefix
+  tls: []

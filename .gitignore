@@ -35,3 +35,5 @@ Thumbs.db
 # Scratch & temporary testing
 scratch/
 tmp/
+data/
+data-*/

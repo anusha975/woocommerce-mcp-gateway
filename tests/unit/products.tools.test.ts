@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { z } from 'zod';
 import { WooCommerceClient } from '../../src/connectors/woocommerce.client.js';
 import { WooCommerceNotFoundError, WooCommerceUpstreamError } from '../../src/connectors/woocommerce.errors.js';
+import { createProductInputSchema } from '../../src/tools/products.tools.js';
 
 describe('Product Tools Unit & Logic Tests', () => {
   const defaultOptions = {
@@ -127,5 +129,55 @@ describe('Product Tools Unit & Logic Tests', () => {
 
     const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
     await expect(client.listProducts()).rejects.toThrow(WooCommerceUpstreamError);
+  });
+
+  describe('createProductInputSchema', () => {
+    const schema = z.object(createProductInputSchema);
+
+    it('should validate and parse minimal valid input with defaults applied', () => {
+      const parsed = schema.parse({ name: 'Minimal T-Shirt' });
+      expect(parsed.name).toBe('Minimal T-Shirt');
+      expect(parsed.type).toBe('simple');
+      expect(parsed.status).toBe('publish');
+    });
+
+    it('should validate and parse complete valid input', () => {
+      const input = {
+        name: 'Premium Wool Sweater',
+        type: 'simple' as const,
+        regular_price: '79.99',
+        description: '<p>A warm wool sweater</p>',
+        short_description: 'Warm sweater',
+        sku: 'SWT-WOL-01',
+        status: 'draft' as const,
+        manage_stock: true,
+        stock_quantity: 15,
+        stock_status: 'instock' as const,
+      };
+
+      const parsed = schema.parse(input);
+      expect(parsed).toEqual(input);
+    });
+
+    it('should fail validation when name is missing or empty', () => {
+      expect(() => schema.parse({})).toThrow();
+      expect(() => schema.parse({ name: '' })).toThrow();
+    });
+
+    it('should fail validation when type is invalid', () => {
+      expect(() => schema.parse({ name: 'Item', type: 'subscription' as unknown as 'simple' })).toThrow();
+    });
+
+    it('should fail validation when status is invalid', () => {
+      expect(() => schema.parse({ name: 'Item', status: 'archived' as unknown as 'publish' })).toThrow();
+    });
+
+    it('should fail validation when stock_status is invalid', () => {
+      expect(() => schema.parse({ name: 'Item', stock_status: 'preorder' as unknown as 'instock' })).toThrow();
+    });
+
+    it('should fail validation when stock_quantity is not an integer', () => {
+      expect(() => schema.parse({ name: 'Item', stock_quantity: 4.5 })).toThrow();
+    });
   });
 });

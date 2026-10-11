@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WooCommerce MCP Gateway — React Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-surface: #0e1424;
+      --card-bg: rgba(17, 24, 39, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(255, 255, 255, 0.12);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.3);
+      --accent: #8b5cf6;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --code-bg: #040711;
+      --radius: 12px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #root { display: flex; flex-direction: column; min-height: 100vh; }
+    header {
+      background: rgba(9, 13, 22, 0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 28px;
+      position: sticky; top: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 18px; color: #fff;
+    }
+    .brand-title { font-size: 17px; font-weight: 700; }
+    .nav-tabs {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px; border-radius: 10px; border: 1px solid var(--card-border);
+    }
+    .nav-tab-btn {
+      background: transparent; border: none; color: var(--text-muted);
+      padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .nav-tab-btn.active { color: #fff; background: var(--primary); }
+    main { flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; padding: 24px; }
+    .card {
+      background: var(--card-bg); backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border); border-radius: var(--radius);
+      padding: 22px;
+    }
+    .btn {
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-title">WooCommerce MCP Gateway Dashboard</div>
+      </div>
+      <div>
+        <a href="/ui" class="btn btn-primary" style="text-decoration:none;">Open Gateway Dashboard</a>
+      </div>
+    </header>
+    <main>
+      <div class="card" style="text-align: center; padding: 40px;">
+        <h2>Standalone Dashboard Active</h2>
+        <p style="color: var(--text-muted); margin-top: 8px;">
+          Connected to WooCommerce in-cluster Gateway at <code>http://woocommerce-mcp-gateway-service:3000</code>.
+        </p>
+        <div style="margin-top: 20px;">
+          <a href="/ui" class="btn btn-primary" style="text-decoration: none;">Launch Interactive UI</a>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

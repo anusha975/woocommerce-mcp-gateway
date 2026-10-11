@@ -124,4 +124,28 @@ describe('Configuration Validation (Zod)', () => {
     const config = validateEnvironment(aliasEnv);
     expect(config.woocommerce.url).toBe('https://alias-store.example.com');
   });
+
+  it('should permit internal Kubernetes DNS service URLs over HTTP in production', () => {
+    // 1. Single-label internal service name
+    const k8sServiceEnv = {
+      NODE_ENV: 'production',
+      WOOCOMMERCE_URL: 'http://woocommerce-mcp-wordpress:80',
+      WOOCOMMERCE_CONSUMER_KEY: 'ck_test',
+      WOOCOMMERCE_CONSUMER_SECRET: 'cs_test',
+    };
+    const config1 = validateEnvironment(k8sServiceEnv);
+    expect(config1.woocommerce.url).toBe('http://woocommerce-mcp-wordpress:80');
+
+    // 2. FQDN cluster.local internal service address
+    const k8sFqdnEnv = {
+      NODE_ENV: 'production',
+      WOOCOMMERCE_URL: 'http://woocommerce-mcp-wordpress.woocommerce-mcp.svc.cluster.local:80',
+      WOOCOMMERCE_CONSUMER_KEY: 'ck_test',
+      WOOCOMMERCE_CONSUMER_SECRET: 'cs_test',
+    };
+    const config2 = validateEnvironment(k8sFqdnEnv);
+    expect(config2.woocommerce.url).toBe(
+      'http://woocommerce-mcp-wordpress.woocommerce-mcp.svc.cluster.local:80'
+    );
+  });
 });

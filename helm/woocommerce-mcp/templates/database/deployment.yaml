@@ -1,0 +1,88 @@
+{{- if .Values.database.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce-mcp.database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.database.fullname" . }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: database
+      app.kubernetes.io/name: {{ include "woocommerce-mcp.database.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce-mcp.labels" . | nindent 8 }}
+        app.kubernetes.io/component: database
+        app.kubernetes.io/name: {{ include "woocommerce-mcp.database.fullname" . }}
+    spec:
+      containers:
+        - name: mariadb
+          image: "{{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}"
+          imagePullPolicy: {{ .Values.database.image.pullPolicy }}
+          ports:
+            - name: mysql
+              containerPort: 3306
+              protocol: TCP
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_PASSWORD
+          livenessProbe:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                - "mariadb-admin ping -uroot -p$MYSQL_ROOT_PASSWORD || mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: {{ .Values.database.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.database.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.database.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.database.probes.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                - "mariadb-admin ping -uroot -p$MYSQL_ROOT_PASSWORD || mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: {{ .Values.database.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.database.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.database.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.database.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.database.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          {{- if .Values.database.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "woocommerce-mcp.database.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

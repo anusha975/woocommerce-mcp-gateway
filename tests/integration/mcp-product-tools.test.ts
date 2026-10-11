@@ -35,7 +35,30 @@ describe('MCP Product Tools Integration Tests', () => {
   let clientTransport: InMemoryTransport;
   let mcpServer: ReturnType<typeof createMcpServer>;
 
-  const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+  const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.includes('/wp-json/wc/v3/products') && init?.method === 'POST') {
+      const body = JSON.parse((init.body as string) || '{}');
+      if (body.sku === 'DUP-SKU') {
+        return new Response(JSON.stringify({ code: 'product_invalid_sku', message: 'SKU already exists' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          id: 555,
+          name: body.name,
+          sku: body.sku || '',
+          price: body.regular_price || '',
+          status: body.status || 'publish',
+        }),
+        {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     if (url.includes('/wp-json/wc/v3/products/101')) {
       return new Response(JSON.stringify(mockRawProductDetail), {
         status: 200,
@@ -103,6 +126,11 @@ describe('MCP Product Tools Integration Tests', () => {
     expect(toolNames).toContain('search_products');
     expect(toolNames).toContain('get_product');
     expect(toolNames).toContain('get_low_stock_products');
+    expect(toolNames).toContain('create_product');
+
+    const createTool = response.tools.find((t) => t.name === 'create_product');
+    expect(createTool).toBeDefined();
+    expect(createTool?.inputSchema).toBeDefined();
   });
 
   it('should invoke list_products and return paginated product list', async () => {
@@ -191,5 +219,61 @@ describe('MCP Product Tools Integration Tests', () => {
     expect(result.isError).toBe(true);
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0]?.text).toContain('Invalid arguments');
+  });
+
+  it('should successfully invoke create_product and return created product details', async () => {
+    const result = await client.callTool({
+      name: 'create_product',
+      arguments: {
+        name: 'Handmade Wool Beanie',
+        type: 'simple',
+        regular_price: '28.00',
+        sku: 'HND-BN-01',
+        description: 'Cozy handmade beanie',
+        manage_stock: true,
+        stock_quantity: 10,
+        stock_status: 'instock',
+      },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content.length).toBe(1);
+
+    const created = JSON.parse(content[0]?.text ?? '{}');
+    expect(created.id).toBe(555);
+    expect(created.name).toBe('Handmade Wool Beanie');
+    expect(created.sku).toBe('HND-BN-01');
+    expect(created.price).toBe('28.00');
+    expect(created.status).toBe('publish');
+  });
+
+  it('should reject create_product when missing required name field', async () => {
+    const result = await client.callTool({
+      name: 'create_product',
+      arguments: {
+        regular_price: '20.00',
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content[0]?.text).toContain('Invalid arguments');
+  });
+
+  it('should return safe error when create_product encounters WooCommerce API error', async () => {
+    const result = await client.callTool({
+      name: 'create_product',
+      arguments: {
+        name: 'Existing SKU Product',
+        sku: 'DUP-SKU',
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content[0]?.text).toContain('SKU already exists');
+    expect(content[0]?.text).not.toContain('cs_test');
+    expect(content[0]?.text).not.toContain('ck_test');
   });
 });

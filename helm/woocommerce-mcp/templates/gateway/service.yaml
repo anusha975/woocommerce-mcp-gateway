@@ -1,0 +1,21 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "woocommerce-mcp.gateway.serviceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+spec:
+  type: {{ .Values.gateway.service.type }}
+  ports:
+    - name: http-mcp
+      port: {{ .Values.gateway.service.port }}
+      targetPort: http-mcp
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+{{- end }}

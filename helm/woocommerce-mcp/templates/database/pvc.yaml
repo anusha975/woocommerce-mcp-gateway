@@ -1,0 +1,23 @@
+{{- if and .Values.database.enabled .Values.database.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "woocommerce-mcp.database.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    {{- toYaml .Values.database.persistence.accessModes | nindent 4 }}
+  {{- if .Values.database.persistence.storageClass }}
+  {{- if eq "-" .Values.database.persistence.storageClass }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.database.persistence.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.database.persistence.size | quote }}
+{{- end }}

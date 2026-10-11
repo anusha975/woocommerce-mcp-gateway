@@ -152,3 +152,42 @@ export interface StoreConfigCheckResult {
   authenticated: boolean;
   message?: string;
 }
+
+export interface CreateProductParams {
+  name: string;
+  type?: 'simple' | 'grouped' | 'external' | 'variable';
+  regular_price?: string;
+  description?: string;
+  short_description?: string;
+  sku?: string;
+  status?: 'draft' | 'pending' | 'private' | 'publish';
+  manage_stock?: boolean;
+  stock_quantity?: number;
+  stock_status?: 'instock' | 'outofstock' | 'onbackorder';
+}
+
+export interface CreatedProductResult {
+  id: number;
+  name: string;
+  sku: string;
+  price: string;
+  status: string;
+}
+
+export interface UpdateOrderStatusParams {
+  id: number;
+  status:
+    | 'pending'
+    | 'processing'
+    | 'on-hold'
+    | 'completed'
+    | 'cancelled'
+    | 'refunded'
+    | 'failed'
+    | 'trash';
+}
+
+export interface UpdatedOrderResult {
+  id: number;
+  status: string;
+}

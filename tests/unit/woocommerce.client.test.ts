@@ -6,6 +6,7 @@ import {
   WooCommerceTimeoutError,
   WooCommerceUpstreamError,
   WooCommerceValidationError,
+  WooCommerceNotFoundError,
   WooCommerceError,
 } from '../../src/connectors/woocommerce.errors.js';
 import {
@@ -255,5 +256,214 @@ describe('WooCommerceClient (Unit & Mocked HTTP)', () => {
     const stringified = JSON.stringify(check);
     expect(stringified).not.toContain('ck_mock_key_123');
     expect(stringified).not.toContain('cs_mock_secret_456');
+  });
+
+  describe('createProduct', () => {
+    it('should successfully create a product and return normalized result', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 301,
+            name: 'Artisan Wool Scarf',
+            sku: 'SCF-WOL-01',
+            price: '49.99',
+            regular_price: '49.99',
+            status: 'publish',
+          }),
+          {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      const result = await client.createProduct({
+        name: 'Artisan Wool Scarf',
+        type: 'simple',
+        regular_price: '49.99',
+        sku: 'SCF-WOL-01',
+        description: 'Cozy artisan wool scarf',
+        manage_stock: true,
+        stock_quantity: 25,
+        stock_status: 'instock',
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, reqInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/wp-json/wc/v3/products');
+      expect(reqInit.method).toBe('POST');
+
+      const sentBody = JSON.parse(reqInit.body as string);
+      expect(sentBody.name).toBe('Artisan Wool Scarf');
+      expect(sentBody.type).toBe('simple');
+      expect(sentBody.regular_price).toBe('49.99');
+      expect(sentBody.sku).toBe('SCF-WOL-01');
+      expect(sentBody.manage_stock).toBe(true);
+      expect(sentBody.stock_quantity).toBe(25);
+
+      expect(result.id).toBe(301);
+      expect(result.name).toBe('Artisan Wool Scarf');
+      expect(result.sku).toBe('SCF-WOL-01');
+      expect(result.price).toBe('49.99');
+      expect(result.status).toBe('publish');
+    });
+
+    it('should throw WooCommerceValidationError if product name is empty or missing', async () => {
+      const client = new WooCommerceClient(defaultOptions);
+
+      await expect(client.createProduct({ name: '' })).rejects.toThrow(WooCommerceValidationError);
+      await expect(client.createProduct({ name: '   ' })).rejects.toThrow(WooCommerceValidationError);
+      await expect(client.createProduct({ name: null as unknown as string })).rejects.toThrow(
+        WooCommerceValidationError
+      );
+    });
+
+    it('should throw WooCommerceValidationError on upstream HTTP 400 with custom message', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'product_invalid_sku',
+            message: 'Product SKU already exists in catalog.',
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      await expect(
+        client.createProduct({ name: 'Duplicate SKU Product', sku: 'EXISTING-SKU' })
+      ).rejects.toThrow('Product SKU already exists in catalog.');
+    });
+
+    it('should throw WooCommerceAuthError on HTTP 401/403 authorization failures', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'woocommerce_rest_cannot_create',
+            message: 'Sorry, you are not allowed to create resources.',
+          }),
+          {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      await expect(client.createProduct({ name: 'New Item' })).rejects.toThrow(
+        WooCommerceAuthError
+      );
+    });
+
+    it('should throw WooCommerceUpstreamError on upstream HTTP 500 server error', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response('Internal Server Error', {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      await expect(client.createProduct({ name: 'Crashing Product' })).rejects.toThrow(
+        WooCommerceUpstreamError
+      );
+    });
+  });
+
+  describe('updateOrderStatus', () => {
+    it('should successfully update order status via PUT /wp-json/wc/v3/orders/:id', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 2001,
+            status: 'completed',
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      const result = await client.updateOrderStatus(2001, 'completed');
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, reqInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/wp-json/wc/v3/orders/2001');
+      expect(reqInit.method).toBe('PUT');
+
+      const sentBody = JSON.parse(reqInit.body as string);
+      expect(sentBody.status).toBe('completed');
+
+      expect(result.id).toBe(2001);
+      expect(result.status).toBe('completed');
+    });
+
+    it('should throw WooCommerceValidationError on invalid or non-integer order ID', async () => {
+      const client = new WooCommerceClient(defaultOptions);
+
+      await expect(client.updateOrderStatus(0, 'completed')).rejects.toThrow(
+        WooCommerceValidationError
+      );
+      await expect(client.updateOrderStatus(-10, 'completed')).rejects.toThrow(
+        WooCommerceValidationError
+      );
+      await expect(client.updateOrderStatus(1.5, 'completed')).rejects.toThrow(
+        WooCommerceValidationError
+      );
+    });
+
+    it('should throw WooCommerceValidationError on invalid or unsupported order status', async () => {
+      const client = new WooCommerceClient(defaultOptions);
+
+      await expect(
+        client.updateOrderStatus(2001, 'shipped' as unknown as 'completed')
+      ).rejects.toThrow("Invalid order status 'shipped'");
+      await expect(
+        client.updateOrderStatus(2001, '' as unknown as 'completed')
+      ).rejects.toThrow(WooCommerceValidationError);
+    });
+
+    it('should throw WooCommerceNotFoundError when updating a nonexistent order (HTTP 404)', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'woocommerce_rest_shop_order_invalid_id',
+            message: 'Invalid ID.',
+          }),
+          {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      await expect(client.updateOrderStatus(99999, 'completed')).rejects.toThrow(
+        WooCommerceNotFoundError
+      );
+      await expect(client.updateOrderStatus(99999, 'completed')).rejects.toThrow(
+        "WooCommerce Order with ID '99999' was not found."
+      );
+    });
+
+    it('should throw WooCommerceUpstreamError on network outage or upstream 500 error', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response('Service Unavailable', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      );
+
+      const client = new WooCommerceClient({ ...defaultOptions, fetchFn: mockFetch });
+      await expect(client.updateOrderStatus(2001, 'cancelled')).rejects.toThrow(
+        WooCommerceUpstreamError
+      );
+    });
   });
 });

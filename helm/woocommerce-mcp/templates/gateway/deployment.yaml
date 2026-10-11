@@ -1,0 +1,107 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+spec:
+  replicas: {{ .Values.gateway.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: gateway
+      app.kubernetes.io/name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce-mcp.labels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/name: {{ include "woocommerce-mcp.gateway.fullname" . }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - name: http-mcp
+              containerPort: {{ .Values.gateway.service.port }}
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: {{ .Values.gateway.service.port | quote }}
+            - name: HOST
+              value: "0.0.0.0"
+            - name: LOG_LEVEL
+              value: {{ .Values.gateway.logLevel | quote }}
+            # In-cluster Kubernetes DNS resolution to WooCommerce / MCP server (Requirement 10)
+            - name: WOOCOMMERCE_BASE_URL
+              value: {{ include "woocommerce-mcp.wordpress.inClusterUrl" . | quote }}
+            - name: WOOCOMMERCE_TIMEOUT_MS
+              value: {{ .Values.gateway.upstreamTimeoutMs | quote }}
+            - name: WOOCOMMERCE_VERIFY_SSL
+              value: {{ .Values.gateway.upstreamVerifySsl | quote }}
+            - name: RATE_LIMIT_WINDOW_MS
+              value: {{ .Values.gateway.rateLimit.windowMs | quote }}
+            - name: RATE_LIMIT_MAX_REQUESTS
+              value: {{ .Values.gateway.rateLimit.maxRequests | quote }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.gateway.corsAllowedOrigins | quote }}
+            - name: MAX_REQUEST_BODY_BYTES
+              value: {{ .Values.gateway.maxBodySizeBytes | quote }}
+            - name: WOOCOMMERCE_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: WOOCOMMERCE_CONSUMER_KEY
+            - name: WOOCOMMERCE_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: WOOCOMMERCE_CONSUMER_SECRET
+            - name: GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: GATEWAY_API_KEY
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: {{ .Values.gateway.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.gateway.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.gateway.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.gateway.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http-mcp
+            initialDelaySeconds: {{ .Values.gateway.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.gateway.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.gateway.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.gateway.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+{{- end }}

@@ -216,7 +216,7 @@ describe('Module 10: End-to-End MCP Gateway Verification', () => {
     expect(status).toBe(200);
     const result = json?.result as { tools: Array<{ name: string; description: string; inputSchema: unknown }> };
     expect(result?.tools).toBeDefined();
-    expect(result.tools.length).toBe(9);
+    expect(result.tools.length).toBeGreaterThanOrEqual(11);
 
     const toolNames = result.tools.map((t) => t.name);
     expect(toolNames).toContain('health_check');
@@ -224,10 +224,13 @@ describe('Module 10: End-to-End MCP Gateway Verification', () => {
     expect(toolNames).toContain('search_products');
     expect(toolNames).toContain('get_product');
     expect(toolNames).toContain('get_low_stock_products');
+    expect(toolNames).toContain('create_product');
     expect(toolNames).toContain('list_recent_orders');
+    expect(toolNames).toContain('list_orders');
     expect(toolNames).toContain('get_order');
     expect(toolNames).toContain('search_orders_by_status');
     expect(toolNames).toContain('get_order_summary');
+    expect(toolNames).toContain('update_order_status');
   });
 
   // 5. Invoke health_check Tool

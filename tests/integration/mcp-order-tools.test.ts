@@ -35,7 +35,22 @@ describe('MCP Order Tools Integration Tests', () => {
   let clientTransport: InMemoryTransport;
   let mcpServer: ReturnType<typeof createMcpServer>;
 
-  const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+  const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.includes('/wp-json/wc/v3/orders/2001') && init?.method === 'PUT') {
+      const body = JSON.parse((init.body as string) || '{}');
+      return new Response(JSON.stringify({ id: 2001, status: body.status || 'completed' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.includes('/wp-json/wc/v3/orders/50000') && init?.method === 'PUT') {
+      return new Response('Internal Server Error', {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }
+
     if (url.includes('/wp-json/wc/v3/orders/2001')) {
       return new Response(JSON.stringify(mockRawOrderDetail), {
         status: 200,
@@ -102,6 +117,11 @@ describe('MCP Order Tools Integration Tests', () => {
     expect(toolNames).toContain('get_order');
     expect(toolNames).toContain('search_orders_by_status');
     expect(toolNames).toContain('get_order_summary');
+    expect(toolNames).toContain('update_order_status');
+
+    const updateTool = response.tools.find((t) => t.name === 'update_order_status');
+    expect(updateTool).toBeDefined();
+    expect(updateTool?.inputSchema).toBeDefined();
   });
 
   it('should invoke list_recent_orders with pagination and date filter', async () => {
@@ -200,5 +220,67 @@ describe('MCP Order Tools Integration Tests', () => {
     expect(result.isError).toBe(true);
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0]?.text).toContain('Invalid arguments');
+  });
+
+  it('should successfully invoke update_order_status and return updated status', async () => {
+    const result = await client.callTool({
+      name: 'update_order_status',
+      arguments: {
+        id: 2001,
+        status: 'completed',
+      },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content.length).toBe(1);
+
+    const updated = JSON.parse(content[0]?.text ?? '{}');
+    expect(updated.id).toBe(2001);
+    expect(updated.status).toBe('completed');
+  });
+
+  it('should reject update_order_status with invalid status', async () => {
+    const result = await client.callTool({
+      name: 'update_order_status',
+      arguments: {
+        id: 2001,
+        status: 'dispatched' as unknown as 'completed',
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content[0]?.text).toContain('Invalid arguments');
+  });
+
+  it('should return safe error when updating a nonexistent order', async () => {
+    const result = await client.callTool({
+      name: 'update_order_status',
+      arguments: {
+        id: 99999,
+        status: 'cancelled',
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content[0]?.text).toContain('not found');
+  });
+
+  it('should return safe error on upstream failure without leaking credentials', async () => {
+    const result = await client.callTool({
+      name: 'update_order_status',
+      arguments: {
+        id: 50000,
+        status: 'refunded',
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(content[0]?.text).toContain('server error (HTTP 500)');
+    expect(content[0]?.text).not.toContain('cs_test');
+    expect(content[0]?.text).not.toContain('ck_test');
   });
 });

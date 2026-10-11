@@ -1,0 +1,21 @@
+{{- if .Values.wordpress.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "woocommerce-mcp.wordpress.serviceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+spec:
+  type: {{ .Values.wordpress.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.wordpress.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+{{- end }}

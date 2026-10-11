@@ -165,7 +165,34 @@ curl -i -X POST http://localhost:3000/mcp \
 
 ---
 
-## 5. Multi-Replica & Session Affinity Considerations
+## 5. Helm Deployment (Full Multi-Workload Stack)
+
+The modular Helm chart in [`helm/woocommerce-mcp/`](file:///c:/Users/DELL/OneDrive/Desktop/woocommerce-mcp-gateway/helm/woocommerce-mcp) orchestrates all required workloads:
+- MariaDB Database with PersistentVolumeClaim (`/var/lib/mysql`)
+- WordPress & WooCommerce Storefront with PersistentVolumeClaim (`/var/www/html/wp-content`)
+- WooCommerce MCP Server (Private ClusterIP only, communicating via in-cluster DNS)
+- MCP Gateway Backend (Exposed via Ingress for MCP agents)
+
+```bash
+# Validate chart templates
+npm run helm:validate
+
+# Deploy to Local Kubernetes (Minikube / Kind / Docker Desktop)
+helm install woocommerce-mcp ./helm/woocommerce-mcp \
+  --namespace woocommerce-mcp \
+  --create-namespace \
+  -f ./helm/woocommerce-mcp/values-local.yaml
+
+# Deploy to Production k3s VPS
+helm install woocommerce-mcp ./helm/woocommerce-mcp \
+  --namespace woocommerce-mcp \
+  --create-namespace \
+  -f ./helm/woocommerce-mcp/values-prod.yaml
+```
+
+---
+
+## 6. Multi-Replica & Session Affinity Considerations
 
 1. **Streamable HTTP Transport (`/mcp`)**: Stateless per request. Operates seamlessly under standard round-robin `ClusterIP` load balancing (`sessionAffinity: None`) with any replica count.
 2. **Server-Sent Events (`/sse` + `/messages`)**: Stateful session holding. If clients connect via SSE across multiple replicas, configure `sessionAffinity: ClientIP` with a sticky timeout (e.g. `timeoutSeconds: 10800`).
@@ -188,8 +215,13 @@ curl -i -X POST http://localhost:3000/mcp \
 ## 7. Cleanup
 
 ```bash
-# Delete all deployed resources
+# Helm cleanup (recommended if installed via Helm):
+helm uninstall woocommerce-mcp -n woocommerce-mcp
+kubectl delete namespace woocommerce-mcp
+
+# Delete standard k8s manifests (if installed via kubectl/kustomize):
 kubectl delete -f k8s/
 # Or via Kustomize:
 kubectl delete -k k8s/
 ```
+

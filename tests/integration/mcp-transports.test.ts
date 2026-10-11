@@ -118,6 +118,105 @@ describe('MCP Transports: Streamable HTTP and Legacy SSE Compliance', () => {
 
       await client.close();
     });
+
+    it('should support stateful session lifecycle (initialize, session reuse, DELETE termination, and 404 on expired session)', async () => {
+      // 1. Initialize creates session and returns Mcp-Session-Id header
+      const initRes = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${testApiKey}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'init-session-1',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-lifecycle-client', version: '1.0.0' },
+          },
+        }),
+      });
+
+      expect(initRes.status).toBe(200);
+      const sessionId = initRes.headers.get('mcp-session-id');
+      expect(sessionId).toBeDefined();
+      expect(typeof sessionId).toBe('string');
+      expect(sessionId!.length).toBeGreaterThan(10);
+
+      // 2. Reuse session for subsequent tools/list request
+      const listRes = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${testApiKey}`,
+          'Mcp-Session-Id': sessionId!,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'list-1',
+          method: 'tools/list',
+          params: {},
+        }),
+      });
+
+      expect(listRes.status).toBe(200);
+
+      // 3. Request with unknown session ID returns 404
+      const unknownRes = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${testApiKey}`,
+          'Mcp-Session-Id': 'non-existent-session-uuid-999',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'unknown-1',
+          method: 'tools/list',
+          params: {},
+        }),
+      });
+
+      expect(unknownRes.status).toBe(404);
+      const unknownBody = (await unknownRes.json()) as { error: { code: number; message: string } };
+      expect(unknownBody.error.code).toBe(-32001);
+      expect(unknownBody.error.message).toContain('Session not found');
+
+      // 4. Terminate session via DELETE /mcp
+      const deleteRes = await fetch(`${baseUrl}/mcp`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${testApiKey}`,
+          'Mcp-Session-Id': sessionId!,
+        },
+      });
+
+      expect(deleteRes.status).toBe(200);
+
+      // 5. Subsequent request with terminated session ID returns 404
+      const postDeleteRes = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${testApiKey}`,
+          'Mcp-Session-Id': sessionId!,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'post-delete-1',
+          method: 'tools/list',
+          params: {},
+        }),
+      });
+
+      expect(postDeleteRes.status).toBe(404);
+    });
   });
 
   // --- 2. Legacy SSE Transport Tests ---

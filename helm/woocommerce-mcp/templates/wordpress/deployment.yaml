@@ -1,0 +1,87 @@
+{{- if .Values.wordpress.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+spec:
+  replicas: {{ .Values.wordpress.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: wordpress
+      app.kubernetes.io/name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce-mcp.labels" . | nindent 8 }}
+        app.kubernetes.io/component: wordpress
+        app.kubernetes.io/name: {{ include "woocommerce-mcp.wordpress.fullname" . }}
+    spec:
+      containers:
+        - name: wordpress
+          image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
+          imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            # In-cluster Kubernetes DNS resolution to database service (Requirement 10)
+            - name: WORDPRESS_DB_HOST
+              value: "{{ include "woocommerce-mcp.database.serviceName" . }}:3306"
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_DATABASE
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_USER
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.database.secretName" . }}
+                  key: MYSQL_PASSWORD
+            - name: WORDPRESS_TABLE_PREFIX
+              value: {{ .Values.wordpress.tablePrefix | quote }}
+          livenessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.wordpress.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.wordpress.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.wordpress.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.wordpress.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.wordpress.resources | nindent 12 }}
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+      volumes:
+        - name: wp-content
+          {{- if .Values.wordpress.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "woocommerce-mcp.wordpress.fullname" . }}-content
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: woocommerce-mcp
+description: Production-ready Helm chart for WooCommerce store, WordPress, persistent MariaDB database, WooCommerce MCP server, and MCP gateway backend.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - woocommerce
+  - wordpress
+  - mcp
+  - model-context-protocol
+  - ai-gateway
+  - mariadb
+maintainers:
+  - name: Urumi AI Engineering

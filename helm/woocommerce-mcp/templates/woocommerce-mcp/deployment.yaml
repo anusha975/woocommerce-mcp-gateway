@@ -1,0 +1,97 @@
+{{- if .Values.woocommerceMcp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "woocommerce-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+spec:
+  replicas: {{ .Values.woocommerceMcp.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mcp-server
+      app.kubernetes.io/name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce-mcp.labels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp-server
+        app.kubernetes.io/name: {{ include "woocommerce-mcp.mcpServer.fullname" . }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: mcp-server
+          image: "{{ .Values.woocommerceMcp.image.repository }}:{{ .Values.woocommerceMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.woocommerceMcp.image.pullPolicy }}
+          ports:
+            - name: http-mcp
+              containerPort: {{ .Values.woocommerceMcp.service.port }}
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: {{ .Values.woocommerceMcp.service.port | quote }}
+            - name: HOST
+              value: "0.0.0.0"
+            - name: LOG_LEVEL
+              value: {{ .Values.woocommerceMcp.logLevel | quote }}
+            # In-cluster Kubernetes DNS resolution to WooCommerce/WordPress service (Requirement 10)
+            - name: WOOCOMMERCE_BASE_URL
+              value: {{ include "woocommerce-mcp.wordpress.inClusterUrl" . | quote }}
+            - name: WOOCOMMERCE_TIMEOUT_MS
+              value: {{ .Values.woocommerceMcp.timeoutMs | quote }}
+            - name: WOOCOMMERCE_VERIFY_SSL
+              value: {{ .Values.woocommerceMcp.verifySsl | quote }}
+            - name: WOOCOMMERCE_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: WOOCOMMERCE_CONSUMER_KEY
+            - name: WOOCOMMERCE_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: WOOCOMMERCE_CONSUMER_SECRET
+            - name: GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce-mcp.credentials.secretName" . }}
+                  key: GATEWAY_API_KEY
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: {{ .Values.woocommerceMcp.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.woocommerceMcp.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.woocommerceMcp.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.woocommerceMcp.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http-mcp
+            initialDelaySeconds: {{ .Values.woocommerceMcp.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.woocommerceMcp.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.woocommerceMcp.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.woocommerceMcp.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.woocommerceMcp.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+{{- end }}

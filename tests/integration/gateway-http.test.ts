@@ -91,6 +91,7 @@ describe('Gateway HTTP & Security Controls', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
     expect(resNoAuth.status).toBe(401);
+    expect(resNoAuth.headers.get('www-authenticate')).toBe('Bearer');
 
     // Invalid token
     const resBadAuth = await fetch(`${baseUrl}/mcp`, {
@@ -102,6 +103,7 @@ describe('Gateway HTTP & Security Controls', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
     expect(resBadAuth.status).toBe(401);
+    expect(resBadAuth.headers.get('www-authenticate')).toContain('Bearer');
   });
 
   it('should accept authorized requests using Bearer token', async () => {

@@ -97,24 +97,6 @@ export function getInteractiveUiHtml(options: {
 
     #root { display: flex; flex-direction: column; min-height: 100vh; }
 
-    /* Top Kubernetes Gateway Notification Bar */
-    .announcement-bar {
-      background: var(--primary-hover);
-      color: #FFFFFF;
-      text-align: center;
-      padding: 7px 16px;
-      font-size: 11.5px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .announcement-bar span { display: inline-flex; align-items: center; gap: 6px; }
-    .announcement-dot { opacity: 0.5; font-size: 8px; }
-
     /* Header */
     header {
       background: rgba(255, 255, 255, 0.96);
@@ -665,14 +647,6 @@ function MCPApp() {
     }
   };
   return /* @__PURE__ */ React.createElement("div", null, 
-    /* Top Kubernetes Gateway Notification Strip */
-    /* @__PURE__ */ React.createElement("div", { className: "announcement-bar" }, 
-      /* @__PURE__ */ React.createElement("span", null, "⚡ Urumi AI FDE Internship · Round 1"), 
-      /* @__PURE__ */ React.createElement("span", { className: "announcement-dot" }, "●"), 
-      /* @__PURE__ */ React.createElement("span", null, "☸️ Team MCP Gateway on Kubernetes"), 
-      /* @__PURE__ */ React.createElement("span", { className: "announcement-dot" }, "●"), 
-      /* @__PURE__ */ React.createElement("span", null, "🔒 RBAC & Audit Trails Active")
-    ), 
     /* Header */
     /* @__PURE__ */ React.createElement("header", null, 
       /* @__PURE__ */ React.createElement("div", { className: "brand" }, 

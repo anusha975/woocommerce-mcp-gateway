@@ -3,113 +3,727 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WooCommerce MCP Gateway — React Admin Dashboard</title>
+  <title>HERBORA NATURALS — WooCommerce MCP Gateway Dashboard</title>
+  
+  <!-- Google Fonts: Editorial Serif + Plus Jakarta Sans + JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <style>
     :root {
-      --bg: #090d16;
-      --bg-surface: #0e1424;
-      --card-bg: rgba(17, 24, 39, 0.7);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --card-hover: rgba(255, 255, 255, 0.12);
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.3);
-      --accent: #8b5cf6;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --text-dim: #6b7280;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --code-bg: #040711;
-      --radius: 12px;
-      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      /* Herbora Naturals Botanical Luxury Green & White Palette */
+      --bg: #F8F6F0;
+      --bg-surface: #FFFFFF;
+      --card-bg: #FFFFFF;
+      --card-border: #E5E0D3;
+      --card-hover: #D7D0C0;
+      
+      --primary: #243E1B;
+      --primary-hover: #1A2F14;
+      --primary-light: #EEF4EA;
+      --primary-border: #D2E2CB;
+      --primary-glow: rgba(36, 62, 27, 0.16);
+      
+      --accent: #446C34;
+      --accent-warm: #EFECE3;
+      
+      --text: #1E2819;
+      --text-muted: #56644F;
+      --text-dim: #7F8D78;
+      
+      --success: #2E7D32;
+      --success-bg: #EAF5EA;
+      --warning: #B45309;
+      --danger: #B91C1C;
+      
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-pill: 9999px;
+      
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-heading: 'Newsreader', 'Cormorant Garamond', Georgia, serif;
       --mono: 'JetBrains Mono', monospace;
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       background-color: var(--bg);
       background-image: 
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
-        radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(68, 108, 52, 0.05) 0px, transparent 45%),
+        radial-gradient(at 100% 0%, rgba(239, 236, 227, 0.9) 0px, transparent 40%),
+        radial-gradient(at 100% 100%, rgba(68, 108, 52, 0.04) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(238, 244, 234, 0.8) 0px, transparent 45%);
       color: var(--text);
       font-family: var(--font);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
-    #root { display: flex; flex-direction: column; min-height: 100vh; }
+
+    h1, h2, h3, h4, .brand-title {
+      font-family: var(--font-heading);
+      letter-spacing: -0.015em;
+      color: var(--text);
+    }
+
+    /* Top Green Announcement Strip */
+    .announcement-bar {
+      background: var(--primary);
+      color: #FAF8F4;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    .announcement-bar span { display: inline-flex; align-items: center; gap: 6px; }
+    .announcement-dot { opacity: 0.45; font-size: 9px; }
+
+    /* Header */
     header {
-      background: rgba(9, 13, 22, 0.88);
-      backdrop-filter: blur(16px);
+      background: #FFFFFF;
       border-bottom: 1px solid var(--card-border);
-      padding: 14px 28px;
-      position: sticky; top: 0; z-index: 100;
-      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 36px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 12px rgba(36, 62, 27, 0.03);
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: var(--primary);
+    }
     .brand-icon {
-      width: 38px; height: 38px; border-radius: 10px;
-      background: linear-gradient(135deg, var(--primary), var(--accent));
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 18px; color: #fff;
+      font-size: 22px;
+      line-height: 1;
+      margin-bottom: 2px;
     }
-    .brand-title { font-size: 17px; font-weight: 700; }
-    .nav-tabs {
-      display: flex; align-items: center; gap: 6px;
-      background: rgba(255, 255, 255, 0.04);
-      padding: 4px; border-radius: 10px; border: 1px solid var(--card-border);
+    .brand-name {
+      font-family: var(--font-heading);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--primary);
+      text-transform: uppercase;
     }
-    .nav-tab-btn {
-      background: transparent; border: none; color: var(--text-muted);
-      padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: all 0.15s ease;
+    .brand-sub {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.35em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-top: -2px;
     }
-    .nav-tab-btn.active { color: #fff; background: var(--primary); }
-    main { flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; padding: 24px; }
-    .card {
-      background: var(--card-bg); backdrop-filter: blur(12px);
-      border: 1px solid var(--card-border); border-radius: var(--radius);
-      padding: 22px;
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
     }
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
     .btn {
-      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
-      cursor: pointer; border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 22px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-family: var(--font);
+      border: none;
     }
-    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; }
-    .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-primary {
+      background: var(--primary);
+      color: #FAF8F4;
+      border: 1px solid var(--primary-hover);
+      box-shadow: 0 3px 12px rgba(36, 62, 27, 0.22);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(36, 62, 27, 0.28);
+    }
+    .btn-secondary {
+      background: var(--primary-light);
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+    }
+    .btn-secondary:hover {
+      background: #E2ECE0;
+      transform: translateY(-1px);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1320px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    /* Hero Section */
+    .hero-banner {
+      background: #FFFFFF;
+      border-radius: 24px;
+      border: 1px solid var(--card-border);
+      padding: 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 40px;
+      box-shadow: 0 8px 30px rgba(36, 62, 27, 0.04);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .hero-title {
+      font-size: 46px;
+      line-height: 1.15;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+    .hero-desc {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-width: 480px;
+      margin-bottom: 28px;
+    }
+    .hero-features {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--card-border);
+    }
+    .hero-feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hero-feature-icon {
+      font-size: 24px;
+    }
+    .hero-feature-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .hero-feature-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      background: var(--accent-warm);
+      border-radius: 18px;
+      padding: 32px;
+      border: 1px solid #E4DEC8;
+    }
+    .product-mock-pill {
+      background: #FFFFFF;
+      border-radius: 14px;
+      padding: 20px 16px;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(36, 62, 27, 0.06);
+      width: 140px;
+      border: 1px solid var(--card-border);
+    }
+    .product-mock-pill.featured {
+      transform: scale(1.05);
+      border-color: var(--primary);
+    }
+    .product-mock-emoji {
+      font-size: 42px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .product-mock-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .product-mock-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Green Guarantees Banner */
+    .guarantees-bar {
+      background: var(--primary);
+      color: #FAF8F4;
+      border-radius: var(--radius);
+      padding: 20px 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      align-items: center;
+      gap: 24px;
+      box-shadow: 0 8px 24px rgba(36, 62, 27, 0.15);
+    }
+    .guarantee-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .guarantee-icon {
+      font-size: 26px;
+      background: rgba(255, 255, 255, 0.12);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .guarantee-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FAF8F4;
+    }
+    .guarantee-desc {
+      font-size: 12px;
+      opacity: 0.8;
+      color: #E2ECE0;
+    }
+
+    /* Section Headers */
+    .section-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Categories Grid */
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+    }
+    .category-card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 24px 16px;
+      text-align: center;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 4px 16px rgba(36, 62, 27, 0.03);
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: inherit;
+    }
+    .category-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+      box-shadow: 0 8px 24px rgba(36, 62, 27, 0.08);
+    }
+    .category-icon {
+      font-size: 38px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .category-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .category-link {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Best Sellers Grid */
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+    .product-card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 20px 16px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 4px 16px rgba(36, 62, 27, 0.03);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .product-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: var(--primary);
+      color: #FAF8F4;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+    }
+    .product-badge.new {
+      background: #2E7D32;
+    }
+    .product-image {
+      font-size: 54px;
+      text-align: center;
+      padding: 18px 0;
+    }
+    .product-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .product-rating {
+      font-size: 11px;
+      color: #C29B38;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .product-rating span { color: var(--text-dim); }
+    .product-price {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 4px;
+    }
+
+    /* Footer Trust Bar */
+    .trust-bar {
+      background: var(--accent-warm);
+      border-radius: var(--radius);
+      padding: 20px 32px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      border: 1px solid #E4DEC8;
+    }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .trust-icon { font-size: 22px; }
+    .trust-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .trust-desc { font-size: 11px; color: var(--text-dim); }
+
+    /* Launch Card */
+    .launch-card {
+      background: #FFFFFF;
+      border-radius: 20px;
+      border: 1px solid var(--card-border);
+      padding: 32px;
+      text-align: center;
+      box-shadow: 0 6px 24px rgba(36, 62, 27, 0.04);
+    }
   </style>
 </head>
 <body>
   <div id="root">
+    <!-- Top Green Strip -->
+    <div class="announcement-bar">
+      <span>🌿 Free Shipping on Orders Over $50</span>
+      <span class="announcement-dot">●</span>
+      <span>✓ 100% Natural & Safe</span>
+      <span class="announcement-dot">●</span>
+      <span>⚡ WooCommerce MCP Gateway Live</span>
+    </div>
+
+    <!-- Header Navigation -->
     <header>
-      <div class="brand">
-        <div class="brand-icon">⚡</div>
-        <div class="brand-title">WooCommerce MCP Gateway Dashboard</div>
-      </div>
-      <div>
-        <a href="/ui" class="btn btn-primary" style="text-decoration:none;">Open Gateway Dashboard</a>
+      <a href="/ui" class="brand">
+        <span class="brand-icon">🌿</span>
+        <span class="brand-name">HERBORA</span>
+        <span class="brand-sub">NATURALS</span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="/ui">Shop ⌵</a></li>
+          <li><a href="/ui">Best Sellers</a></li>
+          <li><a href="/ui">Categories ⌵</a></li>
+          <li><a href="/ui">About Us</a></li>
+          <li><a href="/ui">Blog</a></li>
+          <li><a href="/ui">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/ui" class="btn btn-secondary">🔍 Search</a>
+        <a href="/ui" class="btn btn-primary">Open Interactive Gateway UI →</a>
       </div>
     </header>
+
+    <!-- Main Container -->
     <main>
-      <div class="card" style="text-align: center; padding: 40px;">
-        <h2>Standalone Dashboard Active</h2>
-        <p style="color: var(--text-muted); margin-top: 8px;">
-          Connected to WooCommerce in-cluster Gateway at <code>http://woocommerce-mcp-gateway-service:3000</code>.
-        </p>
-        <div style="margin-top: 20px;">
-          <a href="/ui" class="btn btn-primary" style="text-decoration: none;">Launch Interactive UI</a>
+      <!-- Hero Banner -->
+      <section class="hero-banner">
+        <div>
+          <span class="hero-badge">100% NATURAL & HERBAL</span>
+          <h1 class="hero-title">Nature's Goodness<br>For a Better You</h1>
+          <p class="hero-desc">
+            Discover the power of nature with our premium herbal products crafted for your health and wellness. Connected to your live WooCommerce MCP store.
+          </p>
+          <div>
+            <a href="/ui" class="btn btn-primary" style="padding: 12px 30px; font-size: 14px;">
+              SHOP NOW →
+            </a>
+          </div>
+
+          <div class="hero-features">
+            <div class="hero-feature-item">
+              <span class="hero-feature-icon">🌿</span>
+              <div>
+                <div class="hero-feature-title">100% Natural</div>
+                <div class="hero-feature-sub">Pure & Safe</div>
+              </div>
+            </div>
+            <div class="hero-feature-item">
+              <span class="hero-feature-icon">🥣</span>
+              <div>
+                <div class="hero-feature-title">Herbal Expertise</div>
+                <div class="hero-feature-sub">Trusted & Proven</div>
+              </div>
+            </div>
+            <div class="hero-feature-item">
+              <span class="hero-feature-icon">⚗️</span>
+              <div>
+                <div class="hero-feature-title">No Chemicals</div>
+                <div class="hero-feature-sub">Just Nature</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div class="hero-visual">
+          <div class="product-mock-pill">
+            <span class="product-mock-emoji">🌿</span>
+            <div class="product-mock-label">Ashwagandha</div>
+            <div class="product-mock-sub">Root Extract</div>
+          </div>
+          <div class="product-mock-pill featured">
+            <span class="product-mock-emoji">🧪</span>
+            <div class="product-mock-label">Neem Oil</div>
+            <div class="product-mock-sub">Skin & Hair Care</div>
+          </div>
+          <div class="product-mock-pill">
+            <span class="product-mock-emoji">🍵</span>
+            <div class="product-mock-label">Tulsi Powder</div>
+            <div class="product-mock-sub">Immunity Booster</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Guarantees Bar -->
+      <section class="guarantees-bar">
+        <div class="guarantee-item">
+          <div class="guarantee-icon">🛡️</div>
+          <div>
+            <div class="guarantee-title">Secure Payments</div>
+            <div class="guarantee-desc">100% secure checkout</div>
+          </div>
+        </div>
+        <div class="guarantee-item">
+          <div class="guarantee-icon">🔄</div>
+          <div>
+            <div class="guarantee-title">Easy Returns</div>
+            <div class="guarantee-desc">30 days return policy</div>
+          </div>
+        </div>
+        <div class="guarantee-item">
+          <div class="guarantee-icon">🎧</div>
+          <div>
+            <div class="guarantee-title">Customer Support</div>
+            <div class="guarantee-desc">We're here to help</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Shop By Category -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">🌿 SHOP BY CATEGORY 🌿</h2>
+        </div>
+        <div class="categories-grid">
+          <a href="/ui" class="category-card">
+            <span class="category-icon">💊</span>
+            <div class="category-name">Supplements</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+          <a href="/ui" class="category-card">
+            <span class="category-icon">🥣</span>
+            <div class="category-name">Herbal Powders</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+          <a href="/ui" class="category-card">
+            <span class="category-icon">🌿</span>
+            <div class="category-name">Essential Oils</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+          <a href="/ui" class="category-card">
+            <span class="category-icon">🍵</span>
+            <div class="category-name">Herbal Teas</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+          <a href="/ui" class="category-card">
+            <span class="category-icon">🧼</span>
+            <div class="category-name">Personal Care</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+          <a href="/ui" class="category-card">
+            <span class="category-icon">🧘</span>
+            <div class="category-name">Wellness</div>
+            <div class="category-link">Shop Now →</div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Best Sellers -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">BEST SELLERS</h2>
+        </div>
+        <div class="products-grid">
+          <div class="product-card">
+            <span class="product-badge">BEST SELLER</span>
+            <div class="product-image">💊</div>
+            <div class="product-name">Ashwagandha Capsules</div>
+            <div class="product-rating">★★★★★ <span>(128)</span></div>
+            <div class="product-price">$24.99</div>
+          </div>
+          <div class="product-card">
+            <div class="product-image">🥣</div>
+            <div class="product-name">Moringa Powder</div>
+            <div class="product-rating">★★★★★ <span>(96)</span></div>
+            <div class="product-price">$19.99</div>
+          </div>
+          <div class="product-card">
+            <div class="product-image">🧪</div>
+            <div class="product-name">Neem Oil</div>
+            <div class="product-rating">★★★★★ <span>(75)</span></div>
+            <div class="product-price">$18.99</div>
+          </div>
+          <div class="product-card">
+            <div class="product-image">🍵</div>
+            <div class="product-name">Detox Herbal Tea</div>
+            <div class="product-rating">★★★★★ <span>(112)</span></div>
+            <div class="product-price">$14.99</div>
+          </div>
+          <div class="product-card">
+            <span class="product-badge new">NEW</span>
+            <div class="product-image">🧴</div>
+            <div class="product-name">Aloe Vera Gel</div>
+            <div class="product-rating">★★★★★ <span>(58)</span></div>
+            <div class="product-price">$16.99</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Gateway Launch Card -->
+      <section class="launch-card">
+        <h2 style="font-size: 26px; margin-bottom: 8px;">WooCommerce MCP Gateway Console</h2>
+        <p style="color: var(--text-muted); max-width: 650px; margin: 0 auto 20px auto; font-size: 14px;">
+          Manage upstream MCP servers, run AI Chat Store Agent, execute tools with RBAC enforcement, and monitor immutable audit logs.
+        </p>
+        <div>
+          <a href="/ui" class="btn btn-primary" style="padding: 12px 32px; font-size: 14px;">
+            ⚡ Launch Full Interactive MCP Dashboard
+          </a>
+        </div>
+      </section>
+
+      <!-- Trust Bar -->
+      <section class="trust-bar">
+        <div class="trust-item">
+          <span class="trust-icon">🌱</span>
+          <div>
+            <div class="trust-title">Sustainably Sourced</div>
+            <div class="trust-desc">From nature, responsibly</div>
+          </div>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">🏆</span>
+          <div>
+            <div class="trust-title">Premium Quality</div>
+            <div class="trust-desc">Lab tested & trusted</div>
+          </div>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">💚</span>
+          <div>
+            <div class="trust-title">Made with Care</div>
+            <div class="trust-desc">For you and your family</div>
+          </div>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon">🌍</span>
+          <div>
+            <div class="trust-title">Eco Friendly</div>
+            <div class="trust-desc">Good for you, good for earth</div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </body>

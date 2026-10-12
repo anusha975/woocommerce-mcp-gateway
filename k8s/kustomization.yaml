@@ -6,6 +6,7 @@ namespace: woocommerce-mcp
 resources:
   - namespace.yaml
   - configmap.yaml
+  - pvc.yaml
   - deployment.yaml
   - service.yaml
 

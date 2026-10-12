@@ -95,11 +95,16 @@ spec:
             - secretRef:
                 name: woocommerce-mcp-gateway-secrets
 
-          # Writable volume for temporary system files (/tmp)
+          # Writable volume for temporary system files (/tmp) and persistent application data (/usr/src/app/data)
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp
+            - name: data-volume
+              mountPath: /usr/src/app/data
 
       volumes:
         - name: tmp-volume
           emptyDir: {}
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: woocommerce-mcp-gateway-data

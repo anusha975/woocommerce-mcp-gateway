@@ -12,6 +12,7 @@ data:
   PORT: "3000"
   HOST: "0.0.0.0"
   LOG_LEVEL: "info"
+  DATA_DIR: "/usr/src/app/data"
   # Target WooCommerce Store URL:
   # NOTE: In Kubernetes, 'localhost' refers to the pod itself, not the Windows host machine.
   # For local development with Docker Desktop Kubernetes accessing a host-based store (e.g. Local WP):

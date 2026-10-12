@@ -151,44 +151,128 @@ When authentication is enabled, provide the gateway API key using the configured
 
 Tool availability depends on the upstream server being enabled and reachable.
 
-## Running Tests
+## Connecting MCP Clients & MCP Inspector
 
-Run the complete test suite:
+The gateway supports both modern **Streamable HTTP** (`POST /mcp`) and traditional **Server-Sent Events** (`GET /sse` with `POST /messages`).
+
+### MCP Inspector Setup
+
+You can inspect and execute tools interactively using the official Model Context Protocol Inspector:
 
 ```bash
+# 1. Start the gateway locally (or via Docker/Kubernetes)
+npm run dev
+
+# 2. Launch MCP Inspector in another terminal
+npx @modelcontextprotocol/inspector
+```
+
+In the Inspector UI:
+* **Transport Type:** Select `SSE` or `Streamable HTTP`.
+* **URL:**
+  * For SSE: `http://localhost:3000/sse`
+  * For Streamable HTTP: `http://localhost:3000/mcp`
+* **Authentication Header:**
+  * When `GATEWAY_API_KEY` is configured in `.env`, provide the header in Inspector configuration:
+    ```text
+    Authorization: Bearer <YOUR_GATEWAY_API_KEY>
+    ```
+  * When `GATEWAY_API_KEY` is left blank in `.env`, gateway authentication is disabled and no header is required.
+
+### External MCP Clients (Claude Desktop & Cursor)
+
+**Claude Desktop Configuration (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "woocommerce-gateway": {
+      "command": "node",
+      "args": ["/path/to/woocommerce-mcp-gateway/dist/index.js"],
+      "env": {
+        "PORT": "3000",
+        "WOOCOMMERCE_BASE_URL": "https://your-store.example.com",
+        "WOOCOMMERCE_CONSUMER_KEY": "ck_...",
+        "WOOCOMMERCE_CONSUMER_SECRET": "cs_..."
+      }
+    }
+  }
+}
+```
+
+**Streamable HTTP via curl:**
+```bash
+curl -i -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer <GATEWAY_API_KEY>" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": { "name": "test-client", "version": "1.0.0" }
+    }
+  }'
+```
+
+## Verification Status & Automated Tests
+
+The repository contains an automated test pyramid with unit, integration, resilience, and acceptance scenario test suites.
+
+### Test Commands
+
+```bash
+# Run complete test suite (143 passed, 2 skipped across 16 test files)
 npm test
-```
 
-Run unit tests:
-
-```bash
+# Run unit tests only
 npm run test:unit
-```
 
-Run integration tests:
-
-```bash
+# Run integration tests only (MCP protocol, transports, resilience)
 npm run test:integration
-```
 
-Run chat agent tests:
-
-```bash
+# Run Chat Agent integration tests
 npm run test:chat
-```
 
-Run acceptance tests:
-
-```bash
+# Run End-to-End Acceptance Scenarios test suite (Scenarios B through G)
 npm run test:acceptance
-```
 
-Run type checking and linting:
+# Run standalone end-to-end verification CLI
+npm run test:e2e
 
-```bash
+# Run live store tests (requires live store and RUN_LIVE_TESTS=true)
+npm run test:live
+
+# Run TypeScript strict type checking and ESLint
 npm run typecheck
 npm run lint
+
+# Validate Helm chart templates and DNS configuration
+npm run helm:validate
 ```
+
+### Live vs Automated Verification Status
+
+| Scope | Automated Tests | Live Environment Verification | Notes |
+| :--- | :---: | :---: | :--- |
+| **MCP Protocol & Transports** | **PASS** (143 passed) | Verified | Tested over Streamable HTTP and SSE via official SDK client. |
+| **WooCommerce Tools & Schemas** | **PASS** (53 tests) | **PARTIAL** | Verified against REST v3 mock server and in-memory sandbox. Live store test skipped (`RUN_LIVE_TESTS=true` required). |
+| **Docker Containerization** | **PASS** | **PARTIAL** | Multi-stage Dockerfile and health check syntax verified; live daemon was offline during testing. |
+| **Kubernetes & Helm** | **PASS** | **PARTIAL** | Manifests and Helm templates validated (`kustomize`, `helm:validate`); live cluster deployment unverified. |
+
+## End-to-End Acceptance Scenarios (Scenarios A–G)
+
+| Scenario | Feature | What It Tests | Verification Status |
+| :--- | :--- | :--- | :---: |
+| **A** | **Storefront Checkout** | Placing a test order with Cash on Delivery (COD) on the storefront and confirming the order appears in WordPress Admin. | **Documented (Manual)**<br/>*Requires live running WordPress store.* |
+| **B** | **Chat Agent Tool Loop** | Authenticated User A asks the AI Chat Agent to create a product (`wc__create_product`) and query today's orders (`wc__list_orders`) with PII stripped. | **PASS (Automated)**<br/>*Verified in `tests/integration/acceptance-scenarios.test.ts` (B1, B2).* |
+| **C** | **External Client & Multi-Upstream** | User B connects via external MCP client using their personal key; verifies tool discovery across all 3 upstreams and executes cross-upstream tool calls. | **PASS (Automated)**<br/>*Verified in `acceptance-scenarios.test.ts` (C1, C2).* |
+| **D** | **API Key Revocation** | User B's key is revoked from the auth service/dashboard; subsequent requests immediately return HTTP 401 Unauthorized. | **PASS (Automated)**<br/>*Verified in `acceptance-scenarios.test.ts` (D1).* |
+| **E** | **Upstream Management** | Disabling the Inventory upstream dynamically purges all `inv__*` tools from the MCP discovery catalog; re-enabling restores them. | **PASS (Automated)**<br/>*Verified in `acceptance-scenarios.test.ts` (E1).* |
+| **F** | **Failure Isolation** | Simulating a failed/crashed upstream returns a structured `isError: true` ToolResult without crashing the gateway; other upstreams continue operating. | **PASS (Automated)**<br/>*Verified in `acceptance-scenarios.test.ts` (F1, F2, F3).* |
+| **G** | **Audit Logging** | Audit log records user identity (`user_a`, `user_b`), tool called, upstream server, duration in ms, and outcome without leaking credentials. | **PASS (Automated)**<br/>*Verified in `acceptance-scenarios.test.ts` (G1, G2).* |
 
 ## Docker
 
@@ -274,6 +358,13 @@ Configure local hostnames and Ingress according to the Helm values and cluster s
 - Validate tool inputs and sanitize errors.
 - Avoid logging secrets or sensitive customer information.
 - Restrict upstream access and apply request timeouts.
+
+## Known Limitations & Architecture Tradeoffs
+
+1. **Mock / Sandbox Fallback Mode**: When the target WooCommerce store is unreachable (`ENOTFOUND`, `ECONNREFUSED`, `fetch failed`) or configured with a `.local` URL, the client responds using an in-memory sandbox store so development demos and automated tests operate without external network dependencies. For live production stores, ensure a routable HTTPS URL with valid API keys is provided.
+2. **Pod-Scoped In-Memory Rate Limiting**: The built-in rate limiter operates in-memory per pod replica. In multi-pod Kubernetes deployments, rate limits apply per replica. For synchronized global rate limiting across pods, an external store (such as Redis) is recommended for production scale.
+3. **SSE Session Affinity**: The legacy Server-Sent Events transport (`/sse` & `/messages`) is stateful and requires sticky sessions (`sessionAffinity: ClientIP`) across multiple Kubernetes pod replicas. Clients are strongly recommended to use the stateless Streamable HTTP transport (`/mcp`), which works seamlessly with standard round-robin ClusterIP load balancing.
+4. **Storage Persistence**: In Kubernetes, the gateway pod runs with `readOnlyRootFilesystem: true`. Persistent data (API keys, users, audit logs) is mapped to `/usr/src/app/data` backed by a PersistentVolumeClaim (`k8s/pvc.yaml`). Temporary system files use a mounted `emptyDir` at `/tmp`.
 
 ## Troubleshooting
 

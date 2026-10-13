@@ -21,13 +21,17 @@ export function getInteractiveUiHtml(options: {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
-  <!-- React 18 & ReactDOM via CDN (cdnjs with unpkg fallback) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- React 18 & ReactDOM via CDN (jsDelivr with cdnjs fallback) -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   <script>
     if (!window.React) {
-      document.write('<script src="https://unpkg.com/react@18/umd/react.production.min.js"><\\/script>');
-      document.write('<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\\/script>');
+      var s1 = document.createElement('script');
+      s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js';
+      document.head.appendChild(s1);
+      var s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js';
+      document.head.appendChild(s2);
     }
   </script>
 
@@ -377,10 +381,31 @@ export function getInteractiveUiHtml(options: {
     };
 
 "use strict";
-const { useState, useEffect, useRef } = React;
+
+window.onerror = function(msg, source, line, col, error) {
+  console.error("Dashboard error caught:", msg, "at line", line, error);
+  var rootEl = document.getElementById("root");
+  if (rootEl && rootEl.innerText && rootEl.innerText.includes("Loading WooCommerce MCP Gateway Dashboard")) {
+    rootEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;color:#DC2626;font-family:sans-serif;gap:14px;padding:24px;text-align:center;">' +
+      '<div style="font-size:36px;">⚠️</div>' +
+      '<h3 style="font-size:18px;font-weight:700;">Dashboard Load Error</h3>' +
+      '<p style="font-size:13px;color:#475569;max-width:440px;">' + (msg || "Error compiling dashboard scripts.") + '</p>' +
+      '<button onclick="location.reload()" style="padding:10px 20px;border-radius:9999px;background:#166534;color:#fff;border:none;font-weight:600;cursor:pointer;">Reload Dashboard</button>' +
+    '</div>';
+  }
+};
+
+function safeStorageGet(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+}
+function safeStorageSet(key, val) {
+  try { localStorage.setItem(key, val); } catch (e) {}
+}
+
 function MCPApp() {
+  const { useState, useEffect, useRef } = React;
   const [activeTab, setActiveTab] = useState("chat");
-  const [apiKey, setApiKey] = useState(localStorage.getItem("mcp_api_key") || "gw_sec_dev_local_key_123");
+  const [apiKey, setApiKey] = useState(safeStorageGet("mcp_api_key", "gw_sec_dev_local_key_123"));
   const [currentUser, setCurrentUser] = useState({ username: "admin", role: "admin" });
   const [upstreams, setUpstreams] = useState([]);
   const [tools, setTools] = useState([]);
@@ -420,7 +445,7 @@ function MCPApp() {
   });
   useEffect(() => {
     if (!apiKey) return;
-    localStorage.setItem("mcp_api_key", apiKey);
+    safeStorageSet("mcp_api_key", apiKey);
     fetch("/api/auth/me", { headers: getHeaders() }).then((r) => r.json()).then((data) => {
       if (data.user) setCurrentUser(data.user);
     }).catch(() => {
@@ -652,7 +677,7 @@ function MCPApp() {
           data = { jsonrpc: "2.0", error: { code: -32700, message: "Invalid JSON response from gateway" }, id: null };
         }
       } else if (contentType.includes("text/event-stream") || text.includes("data:")) {
-        const lines = text.split("\n");
+        const lines = text.split(String.fromCharCode(10));
         let parsed = null;
         for (const line of lines) {
           if (line.startsWith("data:")) {
@@ -1044,11 +1069,35 @@ function MCPApp() {
   );
 }
 
+    var __mountRetries = 0;
     function mountDashboard() {
       var rootEl = document.getElementById('root');
-      if (rootEl && window.React && window.ReactDOM) {
+      if (!rootEl) return;
+      if (!window.React || !window.ReactDOM) {
+        if (__mountRetries < 25) {
+          __mountRetries++;
+          setTimeout(mountDashboard, 150);
+          return;
+        }
+        rootEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;color:#166534;font-family:sans-serif;gap:16px;padding:24px;text-align:center;">' +
+          '<div style="font-size:36px;">⚠️</div>' +
+          '<h3 style="font-size:18px;font-weight:700;color:#0F172A;">Could not connect to React CDN assets</h3>' +
+          '<p style="font-size:13px;color:#475569;max-width:420px;">Please check your network connection and reload the dashboard.</p>' +
+          '<button onclick="location.reload()" style="padding:10px 20px;border-radius:9999px;background:#166534;color:#fff;border:none;font-weight:600;cursor:pointer;">Reload Dashboard</button>' +
+        '</div>';
+        return;
+      }
+      try {
         var root = ReactDOM.createRoot(rootEl);
         root.render(React.createElement(MCPApp, null));
+      } catch (err) {
+        console.error('Mount error:', err);
+        rootEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;color:#DC2626;font-family:sans-serif;gap:16px;padding:24px;text-align:center;">' +
+          '<div style="font-size:36px;">⚠️</div>' +
+          '<h3 style="font-size:18px;font-weight:700;">Dashboard Render Error</h3>' +
+          '<pre style="font-size:12px;background:#FEE2E2;padding:12px 16px;border-radius:8px;max-width:540px;text-align:left;overflow-x:auto;">' + (err.stack || err.message) + '</pre>' +
+          '<button onclick="location.reload()" style="padding:10px 20px;border-radius:9999px;background:#166534;color:#fff;border:none;font-weight:600;cursor:pointer;">Reload Dashboard</button>' +
+        '</div>';
       }
     }
 

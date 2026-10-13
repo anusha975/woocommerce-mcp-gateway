@@ -474,6 +474,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
 
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: true,
           onsessioninitialized: (newSid) => {
             const sessionRecord: StreamableSession = {
               transport,
@@ -510,6 +511,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
         const server = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser);
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
+          enableJsonResponse: true,
         });
         await server.connect(transport);
       }

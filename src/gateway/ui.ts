@@ -412,9 +412,11 @@ function MCPApp() {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 4e3);
   };
-  const getHeaders = () => ({
+  const getHeaders = (extra = {}) => ({
     "Content-Type": "application/json",
-    "Authorization": apiKey ? \`Bearer \${apiKey.trim()}\` : ""
+    "Accept": "application/json, text/event-stream",
+    "Authorization": apiKey ? \`Bearer \${apiKey.trim()}\` : "",
+    ...extra
   });
   useEffect(() => {
     if (!apiKey) return;
@@ -627,7 +629,9 @@ function MCPApp() {
     try {
       const res = await fetch("/mcp", {
         method: "POST",
-        headers: getHeaders(),
+        headers: getHeaders({
+          "Accept": "application/json, text/event-stream"
+        }),
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: Date.now(),
@@ -638,10 +642,50 @@ function MCPApp() {
           }
         })
       });
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      const text = await res.text();
+      let data;
+      if (contentType.includes("application/json") || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { jsonrpc: "2.0", error: { code: -32700, message: "Invalid JSON response from gateway" }, id: null };
+        }
+      } else if (contentType.includes("text/event-stream") || text.includes("data:")) {
+        const lines = text.split("\n");
+        let parsed = null;
+        for (const line of lines) {
+          if (line.startsWith("data:")) {
+            const dataStr = line.substring(5).trim();
+            if (dataStr) {
+              try {
+                parsed = JSON.parse(dataStr);
+                break;
+              } catch {}
+            }
+          }
+        }
+        data = parsed || { jsonrpc: "2.0", error: { code: -32603, message: "Failed to parse SSE event data from stream" }, id: null };
+      } else {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { jsonrpc: "2.0", error: { code: res.status, message: text || res.statusText }, id: null };
+        }
+      }
       setToolResult(data);
+      if (!res.ok || data.error) {
+        const errMsg = data.error?.message || (typeof data.error === "string" ? data.error : \`HTTP \${res.status}: \${res.statusText}\`);
+        notify(\`Tool error: \${errMsg}\`, "error");
+      } else if (data.result?.isError) {
+        notify("Tool returned an execution failure", "error");
+      } else {
+        notify(\`Tool '\${selectedTool.name}' executed successfully\`, "success");
+      }
     } catch (err) {
-      setToolResult({ error: err.message });
+      const errObj = { jsonrpc: "2.0", error: { code: -32603, message: err.message }, id: null };
+      setToolResult(errObj);
+      notify(\`Network error: \${err.message}\`, "error");
     } finally {
       setExecutingTool(false);
     }
@@ -838,8 +882,10 @@ function MCPApp() {
             ), 
             /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary", onClick: handleRunTool, disabled: executingTool }, executingTool ? "Executing Tool..." : "⚡ Execute Tool"), 
             toolResult && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "20px" } }, 
-              /* @__PURE__ */ React.createElement("h4", { style: { fontSize: "12px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: "8px" } }, "Tool Response:"), 
-              /* @__PURE__ */ React.createElement("pre", { style: { background: "var(--code-bg)", border: "1px solid var(--card-border)", borderRadius: "10px", padding: "14px", fontSize: "12px", color: "var(--primary)", overflowX: "auto", maxHeight: "350px" } }, JSON.stringify(toolResult, null, 2))
+              /* @__PURE__ */ React.createElement("h4", { style: { fontSize: "12px", fontWeight: "700", textTransform: "uppercase", color: (toolResult.error || toolResult.result?.isError) ? "var(--danger)" : "var(--text-dim)", marginBottom: "8px" } }, 
+                (toolResult.error || toolResult.result?.isError) ? "Tool Error Response:" : "Tool Response:"
+              ), 
+              /* @__PURE__ */ React.createElement("pre", { style: { background: "var(--code-bg)", border: \`1px solid \${(toolResult.error || toolResult.result?.isError) ? "rgba(220, 38, 38, 0.3)" : "var(--card-border)"}\`, borderRadius: "10px", padding: "14px", fontSize: "12px", color: (toolResult.error || toolResult.result?.isError) ? "var(--danger)" : "var(--primary)", overflowX: "auto", maxHeight: "350px" } }, JSON.stringify(toolResult, null, 2))
             )
           ) : /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "40px", color: "var(--text-dim)" } }, "Select a tool from the catalog to inspect schema and test.")
         )

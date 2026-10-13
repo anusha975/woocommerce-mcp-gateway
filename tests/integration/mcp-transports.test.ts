@@ -81,6 +81,83 @@ describe('MCP Transports: Streamable HTTP and Legacy SSE Compliance', () => {
       expect(body.error.message).toBe('Not Acceptable: Client must accept both application/json and text/event-stream');
     });
 
+    it('should return 406 Not Acceptable when POST /mcp is requested without any Accept header (dashboard regression)', async () => {
+      const res = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${testApiKey}`,
+          // No Accept header provided
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'test-no-accept-1',
+          method: 'tools/call',
+          params: { name: 'health_check', arguments: {} },
+        }),
+      });
+
+      expect(res.status).toBe(406);
+      const body = (await res.json()) as { error: { code: number; message: string } };
+      expect(body.error.code).toBe(-32000);
+      expect(body.error.message).toBe('Not Acceptable: Client must accept both application/json and text/event-stream');
+    });
+
+    it('should return 406 Not Acceptable when POST /mcp is requested with only text/event-stream Accept header', async () => {
+      const res = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${testApiKey}`,
+          Accept: 'text/event-stream', // Missing application/json
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'test-only-sse-accept',
+          method: 'tools/call',
+          params: { name: 'health_check', arguments: {} },
+        }),
+      });
+
+      expect(res.status).toBe(406);
+      const body = (await res.json()) as { error: { code: number; message: string } };
+      expect(body.error.code).toBe(-32000);
+      expect(body.error.message).toBe('Not Acceptable: Client must accept both application/json and text/event-stream');
+    });
+
+    it('should successfully execute tools/call directly via POST /mcp when client accepts both application/json and text/event-stream', async () => {
+      const res = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${testApiKey}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'tool-call-direct-1',
+          method: 'tools/call',
+          params: {
+            name: 'health_check',
+            arguments: {},
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      const body = (await res.json()) as {
+        jsonrpc: string;
+        id: string;
+        result: { content: Array<{ type: string; text: string }>; isError?: boolean };
+      };
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe('tool-call-direct-1');
+      expect(body.result).toBeDefined();
+      expect(body.result.isError).toBeFalsy();
+      expect(body.result.content[0]?.type).toBe('text');
+    });
+
     it('should complete full MCP lifecycle (initialize, tools/list, tools/call) using official StreamableHTTPClientTransport', async () => {
       const client = new Client(
         { name: 'streamable-test-client', version: '1.0.0' },
@@ -291,6 +368,22 @@ describe('MCP Transports: Streamable HTTP and Legacy SSE Compliance', () => {
       expect(parsed.service).toBe('woocommerce-mcp-gateway');
 
       await sseClient.close();
+    });
+  });
+
+  // --- 3. Dashboard UI Content Negotiation Verification ---
+  describe('Dashboard UI Content Negotiation & Headers Verification', () => {
+    it('should serve /ui with correct Accept headers in dashboard tool execution code', async () => {
+      const res = await fetch(`${baseUrl}/ui`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+
+      // Ensure dashboard sends Accept: application/json, text/event-stream
+      expect(html).toContain('Accept');
+      expect(html).toContain('application/json, text/event-stream');
+      // Ensure dashboard tool execution targets /mcp endpoint
+      expect(html).toContain('/mcp');
+      expect(html).toContain('handleRunTool');
     });
   });
 });

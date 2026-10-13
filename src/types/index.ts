@@ -76,3 +76,58 @@ export interface AuditLogRecord {
   success: boolean;
   error?: string;
 }
+
+export type StoreStatus = 'healthy' | 'unreachable' | 'degraded' | 'disabled';
+
+export interface ProvisionedStore {
+  id: string;
+  name: string;
+  prefix: string;
+  url: string;
+  consumerKey: string;
+  consumerSecret: string;
+  timeoutMs: number;
+  verifySsl: boolean;
+  enabled: boolean;
+  status: StoreStatus;
+  isSandbox?: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastCheckedAt?: string;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface ProvisionStoreInput {
+  name: string;
+  prefix: string;
+  url: string;
+  consumerKey: string;
+  consumerSecret: string;
+  timeoutMs?: number;
+  verifySsl?: boolean;
+  enabled?: boolean;
+  description?: string;
+}
+
+export interface SafeStoreSummary {
+  id: string;
+  name: string;
+  prefix: string;
+  url: string;
+  consumerKeyMasked: string;
+  timeoutMs: number;
+  verifySsl: boolean;
+  enabled: boolean;
+  status: StoreStatus;
+  isSandbox?: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastCheckedAt?: string;
+  latencyMs?: number;
+  error?: string;
+  toolCount: number;
+}
+

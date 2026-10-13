@@ -148,3 +148,54 @@ sequenceDiagram
    ```
 2. **Zero Internal Exposure**: Stack traces and raw internal error objects are logged internally at `error` level with secrets redacted, but are never exposed in external HTTP or JSON-RPC responses.
 3. **Graceful Termination**: On receiving `SIGTERM` or `SIGINT`, the server stops accepting new connections, drains active in-flight requests within a 30-second window, and closes transports before exiting cleanly.
+
+---
+
+## 6. Dynamic Multi-Store Provisioning Architecture (Bonus)
+
+The gateway supports dynamic runtime provisioning of multiple independent WooCommerce store instances without server reboots or configuration downtime.
+
+### Component Diagram
+
+```mermaid
+graph TD
+    subgraph Registry["Store Registry Layer (Storage & Service)"]
+        StoreService["StoreProvisioningService\n- Prefix Validation & Reservation\n- Key Masking (consumerKeyMasked)\n- EventEmitter (onStoreChanged)"]
+        DiskStore["JsonStore (Persistent Disk Storage)\nstores: ProvisionedStore[]"]
+    end
+
+    subgraph Runtime["Runtime Aggregation Layer"]
+        Aggregator["McpAggregator\n- syncStoreServers()\n- storeServers: Map<prefix, RuntimeStore>"]
+        McpServerFactory["createWcServer(storeConfig, client)"]
+    end
+
+    subgraph ExternalMCP["MCP Client Transports"]
+        Streamable["Streamable HTTP (/mcp)"]
+        SSE["SSE Server (/sse)"]
+    end
+
+    subgraph Stores["Independent Runtime Store Instances"]
+        StorePrimary["Primary Store\nprefix: wc\n(wc__* and canonical)"]
+        StoreUS["US Regional Store\nprefix: wcus\n(wcus__* tools)"]
+        StoreEU["EU Regional Store\nprefix: wceu\n(wceu__* tools)"]
+        StoreSandbox["1-Click Sandbox\nprefix: sandbox\n(sandbox__* tools)"]
+    end
+
+    StoreService <--> DiskStore
+    StoreService -->|onStoreChanged event| Aggregator
+    Aggregator --> McpServerFactory
+    McpServerFactory --> StorePrimary & StoreUS & StoreEU & StoreSandbox
+    Aggregator --> Streamable & SSE
+```
+
+### Architectural Principles
+
+1. **Collision-Free Tool Namespacing**:
+   Each provisioned store is identified by a unique validated prefix (e.g., `wcus`, `wceu`). The 12 standard WooCommerce tools are prefixed dynamically (`<prefix>__<tool_name>`). Unprefixed calls default to the primary store for complete backward compatibility.
+2. **Runtime Lifecycle & Zero-Downtime Sync**:
+   When stores are added (`POST /api/stores`), updated (`PATCH /api/stores/:id`), or deleted (`DELETE /api/stores/:id`), `StoreProvisioningService` emits an `onStoreChanged` event. `McpAggregator` updates its internal runtime maps immediately, updating `tools/list` on external transports (`/mcp`, `/sse`) without dropping active connections.
+3. **Cross-Store Failure Isolation**:
+   Every store operates through its own `WooCommerceClient` instance. If an upstream store experiences network partition, 500 internal server error, or timeouts, only tools for that specific prefix return structured `{ isError: true }` responses. Healthy neighboring stores continue executing without interruption.
+4. **Secret Protection & Telemetry**:
+   Consumer keys are masked in all REST representations (`consumerKeyMasked`), and consumer secrets are strictly redacted from API outputs. The `/api/stores/:id/test` diagnostic endpoint executes lightweight operational pings, capturing round-trip latency (`latencyMs`) and connectivity health (`healthy`, `unreachable`).
+

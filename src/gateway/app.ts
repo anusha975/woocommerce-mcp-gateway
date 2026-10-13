@@ -20,6 +20,7 @@ import { JsonStore } from '../storage/store.js';
 import { AuthService } from '../services/auth.service.js';
 import { AuditService } from '../services/audit.service.js';
 import { UpstreamService } from '../services/upstream.service.js';
+import { StoreProvisioningService } from '../services/store-provisioning.service.js';
 import { McpAggregator } from './aggregator.js';
 import { createAggregatedMcpServer } from './aggregated-server.js';
 import { ChatService, type ChatMessage } from '../services/chat.service.js';
@@ -31,6 +32,7 @@ export interface GatewayAppInstance {
   authService: AuthService;
   auditService: AuditService;
   upstreamService: UpstreamService;
+  storeService: StoreProvisioningService;
   aggregator: McpAggregator;
   chatService: ChatService;
 }
@@ -43,12 +45,14 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
   const authService = new AuthService(store);
   const auditService = new AuditService(store);
   const upstreamService = new UpstreamService(store);
-  const aggregator = new McpAggregator(config, upstreamService, auditService);
+  const storeService = new StoreProvisioningService(store);
+  const aggregator = new McpAggregator(config, upstreamService, auditService, storeService);
   const chatService = new ChatService(config, aggregator);
 
-  // Seed default users, hashed keys, and the 3 upstream servers
+  // Seed default users, hashed keys, the 3 upstream servers, and primary store
   authService.seedDefaultUsersAndKeys(config.gatewayApiKey);
   upstreamService.seedDefaultUpstreams(`http://127.0.0.1:${config.port}`, config.env === 'test');
+  storeService.seedDefaultStore(config);
 
   // 2. CORS configuration
   const corsOrigins = config.security.corsAllowedOrigins;
@@ -281,6 +285,134 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
     }
   });
 
+  // --- Multi-Store Provisioning APIs ---
+
+  // List all provisioned stores (Authenticated)
+  app.get('/api/stores', authMiddleware, async (_req: Request, res: Response) => {
+    try {
+      const tools = await aggregator.getAggregatedTools();
+      const toolCountMap = new Map<string, number>();
+      for (const t of tools) {
+        toolCountMap.set(t.upstreamPrefix, (toolCountMap.get(t.upstreamPrefix) || 0) + 1);
+      }
+      const summaries = storeService.listSafeSummaries((prefix) => toolCountMap.get(prefix) || 12);
+      res.json(summaries);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to retrieve provisioned stores';
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Provision a new store (Admin only)
+  app.post('/api/stores', authMiddleware, requireRole('admin'), async (req: Request, res: Response) => {
+    try {
+      const newStore = await storeService.provisionStore(req.body);
+      res.status(201).json(storeService.toSafeSummary(newStore));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to provision store';
+      res.status(400).json({ error: message });
+    }
+  });
+
+  // Provision an instant mock sandbox store (Admin only)
+  app.post('/api/stores/sandbox', authMiddleware, requireRole('admin'), async (req: Request, res: Response) => {
+    try {
+      const { name, prefix, description } = req.body || {};
+      const sandboxStore = await storeService.provisionSandboxStore(name, prefix, description);
+      res.status(201).json(storeService.toSafeSummary(sandboxStore));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to provision sandbox store';
+      res.status(400).json({ error: message });
+    }
+  });
+
+  // Get details of a provisioned store
+  app.get('/api/stores/:id', authMiddleware, (req: Request, res: Response) => {
+    const rawId = req.params['id'];
+    const storeId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storeId) {
+      res.status(400).json({ error: 'Store ID required' });
+      return;
+    }
+    const store = storeService.getStore(storeId);
+    if (!store) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+    res.json(storeService.toSafeSummary(store));
+  });
+
+  // Update provisioned store configuration (Admin only)
+  app.patch('/api/stores/:id', authMiddleware, requireRole('admin'), async (req: Request, res: Response) => {
+    const rawId = req.params['id'];
+    const storeId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storeId) {
+      res.status(400).json({ error: 'Store ID required' });
+      return;
+    }
+    try {
+      if (typeof req.body.enabled === 'boolean') {
+        storeService.setStoreEnabled(storeId, req.body.enabled);
+      }
+      const updated = await storeService.updateStore(storeId, req.body);
+      res.json(storeService.toSafeSummary(updated));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update store';
+      res.status(400).json({ error: message });
+    }
+  });
+
+  // Deprovision and delete a store (Admin only)
+  app.delete('/api/stores/:id', authMiddleware, requireRole('admin'), (req: Request, res: Response) => {
+    const rawId = req.params['id'];
+    const storeId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storeId) {
+      res.status(400).json({ error: 'Store ID required' });
+      return;
+    }
+    const deleted = storeService.deprovisionStore(storeId);
+    if (!deleted) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+    res.json({ success: true, message: `Store '${storeId}' deprovisioned successfully` });
+  });
+
+  // Test live connectivity against a provisioned store (Admin only)
+  app.post('/api/stores/:id/test', authMiddleware, requireRole('admin'), async (req: Request, res: Response) => {
+    const rawId = req.params['id'];
+    const storeId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storeId) {
+      res.status(400).json({ error: 'Store ID required' });
+      return;
+    }
+    try {
+      const health = await storeService.checkStoreHealth(storeId);
+      res.json(health);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Store connectivity test failed';
+      res.status(400).json({ error: message });
+    }
+  });
+
+  // Discover tools specific to a provisioned store
+  app.get('/api/stores/:id/tools', authMiddleware, async (req: Request, res: Response) => {
+    const rawId = req.params['id'];
+    const storeId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storeId) {
+      res.status(400).json({ error: 'Store ID required' });
+      return;
+    }
+    const store = storeService.getStore(storeId);
+    if (!store) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+    const allTools = await aggregator.getAggregatedTools();
+    const storeTools = allTools.filter((t) => t.upstreamPrefix === store.prefix);
+    res.json(storeTools);
+  });
+
   // Audit Logs (Admin only)
   app.get('/api/audit', authMiddleware, requireRole('admin'), (req: Request, res: Response) => {
     const limit = req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 100;
@@ -498,7 +630,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
           }
         };
 
-        const server = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser);
+        const server = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser, storeService);
         await server.connect(transport);
       } else if (sessionId) {
         res.status(404).json({
@@ -508,7 +640,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
         });
         return;
       } else {
-        const server = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser);
+        const server = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser, storeService);
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
           enableJsonResponse: true,
@@ -531,7 +663,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
     try {
       const authReq = req as AuthenticatedRequest;
       const currentUser = authReq.user;
-      const sseServer = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser);
+      const sseServer = createAggregatedMcpServer(config, aggregator, upstreamService, auditService, currentUser, storeService);
       const sseTransport = new SSEServerTransport('/messages', res);
 
       const sessionId = sseTransport.sessionId;
@@ -594,6 +726,7 @@ export function createGatewayApp(config: AppConfig): GatewayAppInstance {
     authService,
     auditService,
     upstreamService,
+    storeService,
     aggregator,
     chatService,
     cleanup: async () => {

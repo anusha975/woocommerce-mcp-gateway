@@ -13,7 +13,8 @@ Built with Node.js and TypeScript using the official `@modelcontextprotocol/sdk`
 - **Failure Isolation:** Upstream outages return structured `{ isError: true }` MCP ToolResults without crashing the gateway or affecting healthy upstreams.
 - **Zero-Trust Access & Instant Revocation:** SHA-256 hashed API keys with `admin` vs `member` roles. Revoking a key takes effect immediately across all sessions.
 - **Privacy & Secret Redaction:** Automatically strips customer PII (phone, email, street address) from order queries and redacts sensitive credentials from logs and error messages.
-- **Embedded UI & AI Chat Agent:** Includes a self-hosted React 18 dashboard (`/ui`) and an AI chat assistant (`/api/chat`) with dual-mode execution (OpenAI or local deterministic tool execution).
+- **Dynamic Multi-Store Provisioning (Bonus):** Dynamically provision, update, health-check, disable, and deprovision multiple WooCommerce stores (regional storefronts, staging environments, sandboxes) at runtime without gateway restarts. Tools are collision-free namespaced (`<prefix>__<tool>`) with cross-store failure isolation.
+- **Embedded UI & AI Chat Agent:** Includes a self-hosted React 18 dashboard (`/ui`) with dedicated "Stores" management and an AI chat assistant (`/api/chat`) with multi-store tool routing.
 - **Hardened Cloud-Native Deployment:** Multi-stage Alpine container running as non-root (`node:node`), Kubernetes manifests with `readOnlyRootFilesystem: true`, and a production-grade Helm chart.
 
 ---
@@ -25,11 +26,12 @@ Built with Node.js and TypeScript using the official `@modelcontextprotocol/sdk`
 | **Runtime & Language** | Node.js 22 LTS, TypeScript 5.7 | Strict ESM (`tsconfig.build.json`), native fetch, `node:crypto` |
 | **MCP Implementation** | `@modelcontextprotocol/sdk` (v1.6.0) | Streamable HTTP and SSE transports, JSON-RPC 2.0 tool dispatching |
 | **HTTP Framework** | Express 5.2 | Routing, sliding-window rate limiting, and health probes |
+| **Multi-Store Registry** | Dynamic Provisioning Service | Runtime store lifecycle, health telemetry, 1-click sandboxes |
 | **Validation & Schema** | Zod 3.24 | Tool input schemas, environment parsing, domain validation |
 | **Logging & Redaction** | Pino 9.6 | Structured JSON logging with automated credential redaction |
 | **Administrative UI** | React 18 | Pre-compiled management console and chat interface served at `/ui` |
-| **Persistence** | Atomic JSON File Store (`JsonStore`) | Synchronous disk-backed state for users, keys, and audit logs |
-| **Automated Testing** | Vitest 3.0, TypeScript, ESLint 9 | 143 automated unit, integration, and acceptance tests |
+| **Persistence** | Atomic JSON File Store (`JsonStore`) | Synchronous disk-backed state for users, keys, upstreams, and stores |
+| **Automated Testing** | Vitest 3.0, TypeScript, ESLint 9 | 164+ automated unit, integration, and multi-store acceptance tests |
 | **Container & Orchestration** | Docker, Kubernetes, Helm 3.12 | Multi-stage unprivileged image, Kustomize manifests, modular Helm chart |
 
 ---
@@ -37,7 +39,11 @@ Built with Node.js and TypeScript using the official `@modelcontextprotocol/sdk`
 ## Table of Contents
 
 - [Architecture](#architecture)
+- [Dynamic Multi-Store Provisioning (Bonus)](#dynamic-multi-store-provisioning-bonus)
 - [Important Engineering Decisions](#important-engineering-decisions)
+- [Reproducible Quick Start](#reproducible-quick-start)
+- [MCP Endpoints & Client Usage](#mcp-endpoints--client-usage)
+- [Available MCP Tools Catalog](#available-mcp-tools-catalog)
 - [Reproducible Quick Start](#reproducible-quick-start)
 - [MCP Endpoints & Client Usage](#mcp-endpoints--client-usage)
 - [Available MCP Tools Catalog](#available-mcp-tools-catalog)
@@ -285,13 +291,106 @@ The gateway exposes 18 production tools across three domains:
 
 ---
 
+## Dynamic Multi-Store Provisioning (Bonus)
+
+The gateway includes a full **Dynamic Multi-Store Provisioning Engine** enabling organizations to manage, aggregate, and query multiple WooCommerce store instances (regional storefronts, staging environments, sandboxes) through a single unified MCP endpoint without server restarts.
+
+### Architectural Overview
+
+```
+                                      ┌────────────────────────┐
+                                      │   MCP AI Clients       │
+                                      │ (Cursor, Claude, Chat) │
+                                      └───────────┬────────────┘
+                                                  │
+                                          Streamable HTTP / SSE
+                                                  ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                WooCommerce MCP Gateway                                 │
+│                                                                                        │
+│   ┌────────────────────────────────────────────────────────────────────────────────┐   │
+│   │                     StoreProvisioningService & Registry                        │   │
+│   │         (Prefix collision check, secret masking, health pings, RBAC)           │   │
+│   └──────┬──────────────────────┬────────────────────────┬─────────────────────┬───┘   │
+│          │                      │                        │                     │       │
+│          ▼                      ▼                        ▼                     ▼       │
+│    Primary Store         North America             Europe Regional       Demo Sandbox  │
+│    prefix: `wc`          prefix: `wcus`            prefix: `wceu`        prefix: `sb`  │
+│    (12 tools)            (12 tools)                (12 tools)            (12 tools)    │
+│    `wc__list_products`   `wcus__list_products`     `wceu__list_products` `sb__*`       │
+└──────────┬──────────────────────┬────────────────────────┬─────────────────────┬───────┘
+           │                      │                        │                     │
+           ▼                      ▼                        ▼                     ▼
+     Primary WC API       US Regional API           EU Regional API       In-Memory Mock
+```
+
+### Key Capabilities
+
+1. **Automatic Collision-Free Namespacing:**
+   - Every provisioned store is registered with a validated alphanumeric prefix (e.g., `wcus`, `wceu`, `sandbox`).
+   - Tools are dynamically exposed as `<prefix>__<tool_name>` (e.g., `wcus__list_products`, `wceu__get_order`, `wcus__create_product`).
+   - Default primary store tools remain accessible both unprefixed (for backward compatibility) and prefixed (`wc__*`).
+2. **Zero-Downtime Dynamic Discovery:**
+   - Provisioning, updating, disabling, or deleting a store immediately updates MCP tool catalogs over `/mcp` and `/sse` in real-time.
+3. **Cross-Store Failure Isolation:**
+   - If a regional store experiences an outage, 500 error, or timeout, invocations to that store return structured `{ isError: true }` without disrupting neighboring stores or the gateway process.
+4. **Strict Credential Protection:**
+   - Consumer keys are masked (`consumerKeyMasked: "ck_live_...99"`); consumer secrets are strictly redacted from REST API responses and audit logs.
+5. **Role-Based Access Control (RBAC):**
+   - Store provisioning and deprovisioning require `admin` privileges. `member` users are restricted to read-only store discovery.
+6. **1-Click Sandbox Provisioning:**
+   - Instant zero-config sandbox store creation via `/api/stores/sandbox` with seeded products and orders for immediate testing.
+7. **Interactive Admin Dashboard & Chat Routing:**
+   - The React 18 Admin Dashboard (`/ui`) features a dedicated "Stores" tab with real-time status badges, latency indicators, connectivity test buttons, and quick provision modals.
+   - The built-in AI Chat Agent (`/api/chat`) automatically routes natural language queries to regional store tools based on context.
+
+### REST Management Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `GET` | `/api/stores` | List all provisioned stores (credentials safely masked) | Member / Admin |
+| `POST` | `/api/stores` | Provision new WooCommerce store with prefix validation | Admin |
+| `POST` | `/api/stores/sandbox` | 1-Click zero-config mock sandbox store creation | Admin |
+| `GET` | `/api/stores/:id` | Retrieve store configuration details | Member / Admin |
+| `PATCH` | `/api/stores/:id` | Update store configuration or toggle enabled state | Admin |
+| `DELETE` | `/api/stores/:id` | Deprovision store and evict tools from discovery | Admin |
+| `POST` | `/api/stores/:id/test` | Operational ping to verify store connectivity & latency | Admin |
+| `GET` | `/api/stores/:id/tools` | Inspect namespaced tools registered for a specific store | Member / Admin |
+
+### Provisioning Example (cURL)
+
+```bash
+# Provision a European regional storefront
+curl -X POST http://localhost:3000/api/stores \
+  -H "Authorization: Bearer <GATEWAY_ADMIN_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "EU Regional Storefront",
+    "prefix": "wceu",
+    "url": "https://eu.mystore.com",
+    "consumerKey": "ck_eu_live_prod_key",
+    "consumerSecret": "cs_eu_live_prod_secret",
+    "description": "European Union fulfillment center"
+  }'
+
+# Tools immediately appear in MCP discovery:
+# - wceu__list_products
+# - wceu__get_order
+# - wceu__update_order_status
+```
+
+---
+
 ## Testing & Verification Quality
 
 ### Verification Commands
 
 ```bash
-# Run complete test suite (143 passed across 16 test files)
+# Run complete test suite (164+ passed across 17 test files)
 npm test
+
+# Run multi-store provisioning integration test suite (21 passed tests)
+npm run test:multistore
 
 # Run unit tests only
 npm run test:unit
@@ -302,7 +401,7 @@ npm run test:integration
 # Run acceptance scenarios test suite (Scenarios B through G)
 npm run test:acceptance
 
-# Run standalone end-to-end verification CLI
+# Run standalone end-to-end verification CLI (14/14 passed checks)
 npm run test:e2e
 
 # Run strict TypeScript compiler verification (0 errors)

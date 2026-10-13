@@ -19,6 +19,7 @@
     "test:integration": "vitest run tests/integration",
     "test:acceptance": "vitest run tests/integration/acceptance-scenarios.test.ts",
     "test:chat": "vitest run tests/integration/chat-agent.test.ts",
+    "test:multistore": "vitest run tests/integration/multi-store-provisioning.test.ts",
     "test:live": "vitest run tests/live",
     "test:e2e": "tsx scripts/verify-e2e.ts",
     "test:watch": "vitest",

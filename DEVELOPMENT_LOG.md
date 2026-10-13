@@ -445,3 +445,52 @@ To test or connect the gateway against a real WooCommerce store instance:
 - **SSE Message Post Endpoint**: `http://<HOST>:<PORT>/messages?sessionId=<SESSION_ID>`
 - **Health Probes**: `http://<HOST>:<PORT>/healthz` (liveness), `http://<HOST>:<PORT>/readyz` (readiness)
 - **Auth Header** (optional): `Authorization: Bearer <GATEWAY_API_KEY>`
+
+---
+
+## Bonus Feature: Multi-Store Dynamic Provisioning
+
+### Overview & Objectives
+Implemented dynamic multi-store provisioning, allowing runtime creation, updating, health checking, disabling, and deprovisioning of independent WooCommerce store instances through a unified MCP aggregation layer without restarting the gateway.
+
+### Completed Work
+1. **Domain Models & Persistence (`src/types/index.ts`, `src/storage/store.ts`)**:
+   - Defined `ProvisionedStore`, `ProvisionStoreInput`, `SafeStoreSummary`, and `StoreStatus` types.
+   - Added atomic synchronous persistence in `JsonStore` (`stores: ProvisionedStore[]`) with complete CRUD methods.
+2. **Store Lifecycle & Provisioning Service (`src/services/store-provisioning.service.ts`)**:
+   - Implemented `StoreProvisioningService` with prefix syntax validation (`/^[a-z0-9_]{2,20}$/`) and collision protection.
+   - Enforced reserved prefix protection (`inv`, `sup`, `mcp`, `system`, `api`, `admin`).
+   - Strict credential masking (`consumerKeyMasked`, zero secret leakage in JSON serialization).
+   - Event-driven notifications via `EventEmitter` (`onStoreChanged`) triggering real-time catalog rebuilds.
+   - Operational health check telemetry (`checkStoreHealth`) measuring upstream ping latency.
+   - 1-click zero-config sandbox store provisioning (`provisionSandboxStore`).
+3. **Runtime Aggregation Layer (`src/gateway/aggregator.ts`, `src/gateway/aggregated-server.ts`)**:
+   - Integrated `StoreProvisioningService` into `McpAggregator`.
+   - Maintains dynamic runtime instances of `WooCommerceClient` and `McpServer` per store prefix.
+   - Collision-free namespacing (`<prefix>__<tool_name>`) for all 12 WooCommerce tools per store.
+   - Cross-store failure isolation: failing or unreachable stores return structured `{ isError: true }` without crashing the gateway or disrupting neighboring stores.
+   - Unprefixed fallback routing to `store_primary` preserves 100% backward compatibility.
+4. **REST API Management Endpoints (`src/gateway/app.ts`)**:
+   - `GET /api/stores`: List all provisioned stores (credentials safely masked).
+   - `POST /api/stores`: Provision new store with prefix validation (Admin only).
+   - `POST /api/stores/sandbox`: 1-Click mock sandbox store creation (Admin only).
+   - `GET /api/stores/:id`: Retrieve store details.
+   - `PATCH /api/stores/:id`: Update configuration or toggle enabled state (Admin only).
+   - `DELETE /api/stores/:id`: Deprovision store and evict tools (Admin only).
+   - `POST /api/stores/:id/test`: Ping store connectivity and record telemetry.
+   - `GET /api/stores/:id/tools`: Inspect namespaced tools registered for store.
+5. **Interactive UI & AI Chat Routing (`src/gateway/ui.ts`, `src/services/chat.service.ts`)**:
+   - React 18 Admin Dashboard: Added dedicated "Stores" tab, real-time status badges, latency indicators, "Quick Sandbox Store" button, and modal.
+   - Built-in AI Chat Agent: Dynamic prefix parsing routes natural language queries to regional store tools based on context.
+6. **Automated Testing Suite (`tests/integration/multi-store-provisioning.test.ts`, `scripts/verify-e2e.ts`)**:
+   - Added 21 automated integration tests covering seeding, provisioning, reserved prefix validation, tool discovery, cross-store data isolation, MCP Streamable HTTP client integration, failure isolation, disable/deprovision lifecycle, and RBAC security.
+   - Added Check 14 to `scripts/verify-e2e.ts` testing dynamic sandbox provisioning and eviction.
+
+### Verification Metrics
+- `npm run test:multistore`: 21/21 passed (100% pass rate).
+- `npm run test:acceptance`: 11/11 passed (100% pass rate).
+- `npm run test:chat`: 6/6 passed (100% pass rate).
+- `npm run test:e2e`: 14 passed, 2 skipped (100% pass rate).
+- `npm run typecheck`: Passed (0 errors).
+- `npm run lint`: Passed (0 errors, 0 warnings).
+

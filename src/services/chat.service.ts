@@ -225,13 +225,21 @@ export class ChatService {
     const text = message.toLowerCase();
     const hasTool = (name: string) => availableTools.some((t) => t.name === name);
 
+    // Dynamic store prefix resolution: detect if user specifies a provisioned store prefix
+    const storePrefixMatch = availableTools
+      .map((t) => t.name.split('__')[0])
+      .find((p) => p && p !== 'wc' && p !== 'inv' && p !== 'sup' && text.includes(p.toLowerCase()));
+    const pfx = storePrefixMatch || 'wc';
+
     // 1. Create Product Intent: e.g. "Create a product called Organic Coffee Beans with price 19.99"
     if (text.includes('create') && text.includes('product')) {
-      const toolName = hasTool('wc__create_product')
-        ? 'wc__create_product'
-        : hasTool('create_product')
-          ? 'create_product'
-          : null;
+      const toolName = hasTool(`${pfx}__create_product`)
+        ? `${pfx}__create_product`
+        : hasTool('wc__create_product')
+          ? 'wc__create_product'
+          : hasTool('create_product')
+            ? 'create_product'
+            : null;
 
       if (toolName) {
         // Extract product name
@@ -275,15 +283,19 @@ export class ChatService {
 
     // 2. Orders Intent: e.g. "What are today's orders?", "List recent orders", "Order status"
     if (text.includes('order') || text.includes('recent order')) {
-      const toolName = hasTool('wc__list_orders')
-        ? 'wc__list_orders'
-        : hasTool('wc__list_recent_orders')
-          ? 'wc__list_recent_orders'
-          : hasTool('list_orders')
-            ? 'list_orders'
-            : hasTool('list_recent_orders')
-              ? 'list_recent_orders'
-              : null;
+      const toolName = hasTool(`${pfx}__list_orders`)
+        ? `${pfx}__list_orders`
+        : hasTool(`${pfx}__list_recent_orders`)
+          ? `${pfx}__list_recent_orders`
+          : hasTool('wc__list_orders')
+            ? 'wc__list_orders'
+            : hasTool('wc__list_recent_orders')
+              ? 'wc__list_recent_orders'
+              : hasTool('list_orders')
+                ? 'list_orders'
+                : hasTool('list_recent_orders')
+                  ? 'list_recent_orders'
+                  : null;
 
       if (toolName) {
         const args: Record<string, unknown> = { per_page: 5 };
@@ -393,11 +405,13 @@ export class ChatService {
 
     // 5. Product Catalog Listing / Search Intent
     if (text.includes('product') || text.includes('item') || text.includes('catalog') || text.includes('stock')) {
-      const toolName = hasTool('wc__list_products')
-        ? 'wc__list_products'
-        : hasTool('list_products')
-          ? 'list_products'
-          : null;
+      const toolName = hasTool(`${pfx}__list_products`)
+        ? `${pfx}__list_products`
+        : hasTool('wc__list_products')
+          ? 'wc__list_products'
+          : hasTool('list_products')
+            ? 'list_products'
+            : null;
 
       if (toolName) {
         const exec = await this.invokeTool(toolName, { per_page: 5 }, user, toolsCalled);

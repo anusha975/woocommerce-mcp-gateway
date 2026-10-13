@@ -3,6 +3,7 @@ import type { AppConfig, User } from '../types/index.js';
 import type { McpAggregator } from './aggregator.js';
 import type { UpstreamService } from '../services/upstream.service.js';
 import type { AuditService } from '../services/audit.service.js';
+import type { StoreProvisioningService } from '../services/store-provisioning.service.js';
 import { SERVER_NAME, SERVER_VERSION } from '../tools/index.js';
 import {
   listProductsInputSchema,
@@ -24,14 +25,16 @@ import { z } from 'zod';
 
 /**
  * Creates an aggregated McpServer exposing tools from all registered upstream servers
- * with namespacing, collision handling, failure isolation, and per-call audit logging.
+ * and dynamically provisioned WooCommerce stores with namespacing, collision handling,
+ * failure isolation, and per-call audit logging.
  */
 export function createAggregatedMcpServer(
   _config: AppConfig,
   aggregator: McpAggregator,
   upstreamService: UpstreamService,
   _auditService: AuditService,
-  currentUser?: User
+  currentUser?: User,
+  storeService?: StoreProvisioningService
 ): McpServer {
   const server = new McpServer(
     {
@@ -220,6 +223,102 @@ export function createAggregatedMcpServer(
       },
       async (args) => aggregator.executeToolCall('sup__get_vip_status', args, fallbackUser)
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MULTI-STORE PROVISIONING: Dynamic Tools for all active provisioned stores
+  // ---------------------------------------------------------------------------
+  if (storeService) {
+    const provisionedStores = storeService.listStores().filter((s) => s.enabled && s.prefix !== 'wc');
+
+    for (const store of provisionedStores) {
+      const p = store.prefix;
+      const sName = store.name;
+
+      server.tool(
+        `${p}__health_check`,
+        `[${sName}] Returns operational health and configuration status for store '${sName}'.`,
+        healthCheckInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__health_check`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__list_products`,
+        `[${sName}] Lists products with filtering, pagination, and stock status filters.`,
+        listProductsInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__list_products`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__search_products`,
+        `[${sName}] Searches catalog products by query string with status filtering.`,
+        searchProductsInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__search_products`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__get_product`,
+        `[${sName}] Retrieves detailed WooCommerce product by numeric ID.`,
+        getProductInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__get_product`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__get_low_stock_products`,
+        `[${sName}] Lists products with stock quantity below threshold.`,
+        getLowStockProductsInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__get_low_stock_products`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__create_product`,
+        `[${sName}] Creates a new product in the store catalog.`,
+        createProductInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__create_product`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__list_recent_orders`,
+        `[${sName}] Lists recent store orders with customer PII exclusion and status filtering.`,
+        listRecentOrdersInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__list_recent_orders`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__list_orders`,
+        `[${sName}] Lists store orders with customer PII exclusion, pagination, and status filtering.`,
+        listOrdersInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__list_orders`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__get_order`,
+        `[${sName}] Retrieves detailed WooCommerce order by ID with billing and line items.`,
+        getOrderInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__get_order`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__search_orders_by_status`,
+        `[${sName}] Filters store orders by exact lifecycle status.`,
+        searchOrdersByStatusInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__search_orders_by_status`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__get_order_summary`,
+        `[${sName}] Retrieves safe high-level order summary with customer PII excluded.`,
+        getOrderSummaryInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__get_order_summary`, args, fallbackUser)
+      );
+
+      server.tool(
+        `${p}__update_order_status`,
+        `[${sName}] Updates the fulfillment status of an order.`,
+        updateOrderStatusInputSchema,
+        async (args) => aggregator.executeToolCall(`${p}__update_order_status`, args, fallbackUser)
+      );
+    }
   }
 
   return server;

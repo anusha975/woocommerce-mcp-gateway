@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import type { User, ApiKeyRecord, UpstreamServer, AuditLogRecord } from '../types/index.js';
+import type { User, ApiKeyRecord, UpstreamServer, AuditLogRecord, ProvisionedStore } from '../types/index.js';
 import { logger } from '../logging/logger.js';
 
 export interface StorageData {
@@ -9,6 +9,7 @@ export interface StorageData {
   apiKeys: ApiKeyRecord[];
   upstreams: UpstreamServer[];
   auditLogs: AuditLogRecord[];
+  stores: ProvisionedStore[];
 }
 
 export class JsonStore {
@@ -51,6 +52,7 @@ export class JsonStore {
           apiKeys: Array.isArray(parsed.apiKeys) ? parsed.apiKeys : [],
           upstreams: Array.isArray(parsed.upstreams) ? parsed.upstreams : [],
           auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+          stores: Array.isArray(parsed.stores) ? parsed.stores : [],
         };
       } catch (err) {
         logger.warn({ err, file: this.filePath }, 'Failed to parse storage file; initializing empty storage state');
@@ -61,6 +63,7 @@ export class JsonStore {
       apiKeys: [],
       upstreams: [],
       auditLogs: [],
+      stores: [],
     };
   }
 
@@ -188,8 +191,58 @@ export class JsonStore {
     return this.data.auditLogs.slice(0, limit);
   }
 
+  // --- Stores ---
+  public getStores(): ProvisionedStore[] {
+    return [...this.data.stores];
+  }
+
+  public getStoreById(id: string): ProvisionedStore | undefined {
+    return this.data.stores.find((s) => s.id === id);
+  }
+
+  public getStoreByPrefix(prefix: string): ProvisionedStore | undefined {
+    const clean = prefix.toLowerCase();
+    return this.data.stores.find((s) => s.prefix.toLowerCase() === clean);
+  }
+
+  public addStore(store: ProvisionedStore): void {
+    const idx = this.data.stores.findIndex((s) => s.id === store.id);
+    if (idx >= 0) {
+      this.data.stores[idx] = store;
+    } else {
+      this.data.stores.push(store);
+    }
+    this.save();
+  }
+
+  public updateStore(id: string, updates: Partial<ProvisionedStore>): ProvisionedStore | undefined {
+    const store = this.data.stores.find((s) => s.id === id);
+    if (!store) return undefined;
+    Object.assign(store, updates, { updatedAt: new Date().toISOString() });
+    this.save();
+    return store;
+  }
+
+  public setStoreEnabled(id: string, enabled: boolean): boolean {
+    const store = this.data.stores.find((s) => s.id === id);
+    if (!store) return false;
+    store.enabled = enabled;
+    store.status = enabled ? (store.status === 'disabled' ? 'healthy' : store.status) : 'disabled';
+    store.updatedAt = new Date().toISOString();
+    this.save();
+    return true;
+  }
+
+  public deleteStore(id: string): boolean {
+    const initialLen = this.data.stores.length;
+    this.data.stores = this.data.stores.filter((s) => s.id !== id);
+    const deleted = this.data.stores.length < initialLen;
+    if (deleted) this.save();
+    return deleted;
+  }
+
   public clearAll(): void {
-    this.data = { users: [], apiKeys: [], upstreams: [], auditLogs: [] };
+    this.data = { users: [], apiKeys: [], upstreams: [], auditLogs: [], stores: [] };
     this.save();
   }
 }

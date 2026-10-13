@@ -347,11 +347,55 @@ async function runE2EVerification() {
       return 'Liveness (/healthz) & Readiness (/readyz) validated';
     });
 
-    // CHECK 14: Live Store Optional Verification
+    // CHECK 14: Dynamic Multi-Store Provisioning & Tool Namespacing (Bonus Feature)
+    await recordCheck(14, 'Multi-Store Dynamic Provisioning & Namespacing', 'Multi-Store', async () => {
+      // 1. Provision instant sandbox store via REST API
+      const provRes = await fetch(`${baseUrl}/api/stores/sandbox`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${testApiKey}`,
+        },
+        body: JSON.stringify({
+          name: 'E2E Verification Sandbox Store',
+          prefix: 'e2esb',
+        }),
+      });
+      if (provRes.status !== 201) throw new Error(`Provisioning sandbox store failed: HTTP ${provRes.status}`);
+      const provStore = (await provRes.json()) as { id: string; prefix: string };
+
+      // 2. Discover dynamically namespaced tools over MCP
+      const { json: toolsJson } = await sendMcp('tools/list', {});
+      const toolNames = ((toolsJson.result as { tools?: Array<{ name: string }> })?.tools || []).map((t) => t.name);
+      if (!toolNames.includes('e2esb__list_products')) {
+        throw new Error('Dynamically namespaced store tool e2esb__list_products not discovered in tools catalog');
+      }
+
+      // 3. Execute tool call on the dynamically provisioned store
+      const { status: callStatus, json: callJson } = await sendMcp('tools/call', {
+        name: 'e2esb__list_products',
+        arguments: {},
+      });
+      const callResult = callJson.result as { isError?: boolean };
+      if (callStatus !== 200 || callResult?.isError) {
+        throw new Error('Tool execution on dynamically provisioned store failed');
+      }
+
+      // 4. Deprovision store and confirm clean eviction
+      const delRes = await fetch(`${baseUrl}/api/stores/${provStore.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${testApiKey}` },
+      });
+      if (delRes.status !== 200) throw new Error(`Deprovisioning failed: HTTP ${delRes.status}`);
+
+      return `Provisioned store '${provStore.prefix}', discovered & executed namespaced tools, and verified deprovisioning`;
+    });
+
+    // CHECK 15: Live Store Optional Verification
     const hasLiveStore = Boolean(process.env.LIVE_WOOCOMMERCE_BASE_URL && process.env.LIVE_WOOCOMMERCE_CONSUMER_KEY);
     if (!hasLiveStore) {
       await recordCheck(
-        14,
+        15,
         'Live WooCommerce Store Handshake',
         'Live Environment',
         async () => '',
@@ -359,9 +403,9 @@ async function runE2EVerification() {
       );
     }
 
-    // CHECK 15: Live Kubernetes Cluster Pod Deployment
+    // CHECK 16: Live Kubernetes Cluster Pod Deployment
     await recordCheck(
-      15,
+      16,
       'Live Kubernetes Cluster Pod Scheduling',
       'Kubernetes',
       async () => '',

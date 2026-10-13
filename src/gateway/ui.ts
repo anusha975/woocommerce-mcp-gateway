@@ -407,6 +407,9 @@ function MCPApp() {
   const [activeTab, setActiveTab] = useState("chat");
   const [apiKey, setApiKey] = useState(safeStorageGet("mcp_api_key", "gw_sec_dev_local_key_123"));
   const [currentUser, setCurrentUser] = useState({ username: "admin", role: "admin" });
+  const [stores, setStores] = useState([]);
+  const [showAddStore, setShowAddStore] = useState(false);
+  const [newStore, setNewStore] = useState({ name: "", prefix: "", url: "", consumerKey: "", consumerSecret: "" });
   const [upstreams, setUpstreams] = useState([]);
   const [tools, setTools] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -452,11 +455,102 @@ function MCPApp() {
     });
   }, [apiKey]);
   useEffect(() => {
+    loadStores();
+  }, [apiKey]);
+  useEffect(() => {
+    if (activeTab === "stores") loadStores();
     if (activeTab === "upstreams") loadUpstreams();
     if (activeTab === "tools") loadTools();
     if (activeTab === "audit" && currentUser.role === "admin") loadAudit();
     if (activeTab === "keys" && currentUser.role === "admin") loadKeysAndUsers();
   }, [activeTab, apiKey]);
+  const loadStores = async () => {
+    try {
+      const res = await fetch("/api/stores", { headers: getHeaders() });
+      if (res.ok) setStores(await res.json());
+    } catch {}
+  };
+  const handleToggleStore = async (id, currentEnabled) => {
+    try {
+      const res = await fetch("/api/stores/" + id, {
+        method: "PATCH",
+        headers: getHeaders(),
+        body: JSON.stringify({ enabled: !currentEnabled })
+      });
+      if (res.ok) {
+        notify("Store " + (!currentEnabled ? "enabled" : "disabled"));
+        loadStores();
+      }
+    } catch {
+      notify("Failed to toggle store", "error");
+    }
+  };
+  const handleCheckStoreHealth = async (id) => {
+    try {
+      const res = await fetch("/api/stores/" + id + "/test", {
+        method: "POST",
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      notify("Store health: " + data.status + " (" + (data.latencyMs || 0) + "ms)", data.status === "healthy" ? "success" : "error");
+      loadStores();
+    } catch {
+      notify("Store health check failed", "error");
+    }
+  };
+  const handleAddStore = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/stores", {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(newStore)
+      });
+      if (res.ok) {
+        notify("Successfully provisioned new WooCommerce store");
+        setShowAddStore(false);
+        setNewStore({ name: "", prefix: "", url: "", consumerKey: "", consumerSecret: "" });
+        loadStores();
+      } else {
+        const err = await res.json();
+        notify(err.error || "Store provisioning failed", "error");
+      }
+    } catch {
+      notify("Error provisioning store", "error");
+    }
+  };
+  const handleProvisionSandbox = async () => {
+    try {
+      const res = await fetch("/api/stores/sandbox", {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ name: "Demo Sandbox Store" })
+      });
+      if (res.ok) {
+        notify("Provisioned instant demo sandbox store");
+        loadStores();
+      } else {
+        notify("Failed to provision sandbox store", "error");
+      }
+    } catch {
+      notify("Error provisioning sandbox store", "error");
+    }
+  };
+  const handleDeleteStore = async (id) => {
+    if (!confirm("Are you sure you want to deprovision and remove this store?")) return;
+    try {
+      const res = await fetch("/api/stores/" + id, {
+        method: "DELETE",
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        notify("Store deprovisioned successfully");
+        loadStores();
+      }
+    } catch {
+      notify("Failed to deprovision store", "error");
+    }
+  };
   const loadUpstreams = async () => {
     setLoading(true);
     try {
@@ -726,9 +820,10 @@ function MCPApp() {
         )
       ), 
       /* @__PURE__ */ React.createElement("nav", { className: "nav-tabs" }, 
-        /* @__PURE__ */ React.createElement("button", { className: \`nav-tab-btn \${activeTab === "chat" ? "active" : ""}\`, onClick: () => setActiveTab("chat") }, "🤖 Chat Agent"), 
-        /* @__PURE__ */ React.createElement("button", { className: \`nav-tab-btn \${activeTab === "upstreams" ? "active" : ""}\`, onClick: () => setActiveTab("upstreams") }, "🌐 Upstreams (", upstreams.length || 3, ")"), 
-        /* @__PURE__ */ React.createElement("button", { className: \`nav-tab-btn \${activeTab === "tools" ? "active" : ""}\`, onClick: () => setActiveTab("tools") }, "🛠️ Tools Catalog"), 
+        /* @__PURE__ */ React.createElement("button", { className: "nav-tab-btn " + (activeTab === "chat" ? "active" : ""), onClick: () => setActiveTab("chat") }, "🤖 Chat Agent"), 
+        /* @__PURE__ */ React.createElement("button", { className: "nav-tab-btn " + (activeTab === "stores" ? "active" : ""), onClick: () => setActiveTab("stores") }, "🏪 Stores (", stores.length || 1, ")"), 
+        /* @__PURE__ */ React.createElement("button", { className: "nav-tab-btn " + (activeTab === "upstreams" ? "active" : ""), onClick: () => setActiveTab("upstreams") }, "🌐 Upstreams (", upstreams.length || 3, ")"), 
+        /* @__PURE__ */ React.createElement("button", { className: "nav-tab-btn " + (activeTab === "tools" ? "active" : ""), onClick: () => setActiveTab("tools") }, "🛠️ Tools Catalog"), 
         currentUser.role === "admin" && /* @__PURE__ */ React.createElement(React.Fragment, null, 
           /* @__PURE__ */ React.createElement("button", { className: \`nav-tab-btn \${activeTab === "keys" ? "active" : ""}\`, onClick: () => setActiveTab("keys") }, "🔑 API Keys"), 
           /* @__PURE__ */ React.createElement("button", { className: \`nav-tab-btn \${activeTab === "audit" ? "active" : ""}\`, onClick: () => setActiveTab("audit") }, "📋 Audit Logs")
@@ -808,6 +903,56 @@ function MCPApp() {
             disabled: chatSending
           }), 
           /* @__PURE__ */ React.createElement("button", { type: "submit", className: "btn btn-primary", disabled: chatSending || !chatInput.trim() }, chatSending ? "Calling..." : "Send")
+        )
+      ), 
+      /* Stores Tab */
+      activeTab === "stores" && /* @__PURE__ */ React.createElement("div", { className: "card" }, 
+        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, 
+          /* @__PURE__ */ React.createElement("div", null, 
+            /* @__PURE__ */ React.createElement("h2", { style: { fontSize: "19px", fontWeight: "700" } }, "Multi-Store Provisioning Management"), 
+            /* @__PURE__ */ React.createElement("p", { style: { fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" } }, "Dynamically provision, monitor, and route across multiple WooCommerce storefront instances with collision-free MCP namespacing.")
+          ), 
+          currentUser.role === "admin" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, 
+            /* @__PURE__ */ React.createElement("button", { className: "btn btn-secondary btn-sm", onClick: handleProvisionSandbox }, "✨ Quick Sandbox Store"), 
+            /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary btn-sm", onClick: () => setShowAddStore(true) }, "+ Provision Store")
+          )
+        ), 
+        /* @__PURE__ */ React.createElement("div", { className: "data-table-wrapper" }, 
+          /* @__PURE__ */ React.createElement("table", { className: "data-table" }, 
+            /* @__PURE__ */ React.createElement("thead", null, 
+              /* @__PURE__ */ React.createElement("tr", null, 
+                /* @__PURE__ */ React.createElement("th", null, "Prefix"), 
+                /* @__PURE__ */ React.createElement("th", null, "Storefront Name"), 
+                /* @__PURE__ */ React.createElement("th", null, "Target Store URL"), 
+                /* @__PURE__ */ React.createElement("th", null, "Consumer Key"), 
+                /* @__PURE__ */ React.createElement("th", null, "Status"), 
+                /* @__PURE__ */ React.createElement("th", null, "Tools"), 
+                /* @__PURE__ */ React.createElement("th", null, "Actions")
+              )
+            ), 
+            /* @__PURE__ */ React.createElement("tbody", null, 
+              stores.map((s) => /* @__PURE__ */ React.createElement("tr", { key: s.id }, 
+                /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("code", { style: { color: "var(--primary)", fontWeight: "700" } }, s.prefix, "__")), 
+                /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("strong", null, s.name), s.isSandbox && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "6px", fontSize: "10px", background: "var(--success-bg)", color: "var(--success)", padding: "2px 6px", borderRadius: "4px" } }, "SANDBOX")), 
+                /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: "11px", color: "var(--text-muted)" } }, s.url)), 
+                /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("code", { style: { fontSize: "11px" } }, s.consumerKeyMasked || "ck_••••••••")), 
+                /* @__PURE__ */ React.createElement("td", null, /* @__PURE__ */ React.createElement("span", { className: "status-badge status-" + (s.status || "healthy") }, "● ", s.status || "healthy", " ", s.latencyMs ? "(" + s.latencyMs + "ms)" : "")), 
+                /* @__PURE__ */ React.createElement("td", { style: { fontSize: "11px", fontWeight: "600", color: "var(--primary)" } }, (s.toolCount || 12) + " tools"), 
+                /* @__PURE__ */ React.createElement("td", null, 
+                  /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "6px" } }, 
+                    /* @__PURE__ */ React.createElement("button", { className: "btn btn-secondary btn-sm", onClick: () => handleCheckStoreHealth(s.id) }, "Ping"), 
+                    currentUser.role === "admin" && /* @__PURE__ */ React.createElement(React.Fragment, null, 
+                      /* @__PURE__ */ React.createElement("button", {
+                        className: "btn btn-sm " + (s.enabled ? "btn-secondary" : "btn-primary"),
+                        onClick: () => handleToggleStore(s.id, s.enabled)
+                      }, s.enabled ? "Disable" : "Enable"), 
+                      s.prefix !== "wc" && /* @__PURE__ */ React.createElement("button", { className: "btn btn-danger btn-sm", onClick: () => handleDeleteStore(s.id) }, "Deprovision")
+                    )
+                  )
+                )
+              ))
+            )
+          )
         )
       ), 
       /* Upstreams Tab */
@@ -1010,6 +1155,37 @@ function MCPApp() {
       )
     ), 
     /* Modals */
+    showAddStore && /* @__PURE__ */ React.createElement("div", { className: "modal-overlay" }, 
+      /* @__PURE__ */ React.createElement("div", { className: "modal-content" }, 
+        /* @__PURE__ */ React.createElement("h3", { style: { fontSize: "18px", fontWeight: "700", marginBottom: "16px" } }, "Provision New WooCommerce Store"), 
+        /* @__PURE__ */ React.createElement("form", { onSubmit: handleAddStore }, 
+          /* @__PURE__ */ React.createElement("div", { className: "form-group" }, 
+            /* @__PURE__ */ React.createElement("label", null, "Storefront Display Name"), 
+            /* @__PURE__ */ React.createElement("input", { type: "text", required: true, placeholder: "e.g. North America Storefront", value: newStore.name, onChange: (e) => setNewStore({ ...newStore, name: e.target.value }) })
+          ), 
+          /* @__PURE__ */ React.createElement("div", { className: "form-group" }, 
+            /* @__PURE__ */ React.createElement("label", null, "Unique MCP Prefix (e.g. wcus -> wcus__list_products)"), 
+            /* @__PURE__ */ React.createElement("input", { type: "text", required: true, placeholder: "e.g. wcus", value: newStore.prefix, onChange: (e) => setNewStore({ ...newStore, prefix: e.target.value }) })
+          ), 
+          /* @__PURE__ */ React.createElement("div", { className: "form-group" }, 
+            /* @__PURE__ */ React.createElement("label", null, "Store REST API URL"), 
+            /* @__PURE__ */ React.createElement("input", { type: "url", required: true, placeholder: "https://us.store.example.com", value: newStore.url, onChange: (e) => setNewStore({ ...newStore, url: e.target.value }) })
+          ), 
+          /* @__PURE__ */ React.createElement("div", { className: "form-group" }, 
+            /* @__PURE__ */ React.createElement("label", null, "WooCommerce Consumer Key (ck_...)"), 
+            /* @__PURE__ */ React.createElement("input", { type: "text", required: true, placeholder: "ck_...", value: newStore.consumerKey, onChange: (e) => setNewStore({ ...newStore, consumerKey: e.target.value }) })
+          ), 
+          /* @__PURE__ */ React.createElement("div", { className: "form-group" }, 
+            /* @__PURE__ */ React.createElement("label", null, "WooCommerce Consumer Secret (cs_...)"), 
+            /* @__PURE__ */ React.createElement("input", { type: "password", required: true, placeholder: "cs_...", value: newStore.consumerSecret, onChange: (e) => setNewStore({ ...newStore, consumerSecret: e.target.value }) })
+          ), 
+          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" } }, 
+            /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-secondary", onClick: () => setShowAddStore(false) }, "Cancel"), 
+            /* @__PURE__ */ React.createElement("button", { type: "submit", className: "btn btn-primary" }, "Provision Store")
+          )
+        )
+      )
+    ), 
     showAddUpstream && /* @__PURE__ */ React.createElement("div", { className: "modal-overlay" }, 
       /* @__PURE__ */ React.createElement("div", { className: "modal-content" }, 
         /* @__PURE__ */ React.createElement("h3", { style: { fontSize: "18px", fontWeight: "700", marginBottom: "16px" } }, "Register Streamable HTTP Upstream Server"), 
